@@ -4,6 +4,8 @@
 (function(){
 const A = window.APP, {nf, esc, DAY, limaParts, fmtDate, fmtLocal, depthColor, MESES} = A;
 const W = 372;                                   // chart width in SVG units
+// chart colours with >= 3:1 contrast against the panel in each theme
+const CC = () => A.theme === "dark" ? {big:"#ff6b55", small:"#8b95a1", pt:"#9aa4ae"} : {big:"#b8321f", small:"#7c8692", pt:"#6b7480"};
 let secAxis = "lon";
 
 // ------------------------------------------------------------ small math helpers
@@ -98,11 +100,11 @@ function chartTimeline(V, b){
   const every = Math.ceil(bins.length / 7);
   bins.forEach((x, i) => {
     const xx = f.X(i) + Math.min(.6, bw * .1), w = Math.max(.6, bw - Math.min(1.2, bw * .2));
-    if (x.n) body += `<rect x="${xx}" y="${f.Y(x.n)}" width="${w}" height="${f.Y(0) - f.Y(x.n)}" fill="#9aa4ae"><title>${lab(x.t)}: ${x.n} sismos (${x.big} con M ≥ 4.5)</title></rect>`;
-    if (x.big) body += `<rect x="${xx}" y="${f.Y(x.big)}" width="${w}" height="${f.Y(0) - f.Y(x.big)}" fill="#b8321f" pointer-events="none"/>`;
+    if (x.n) body += `<rect x="${xx}" y="${f.Y(x.n)}" width="${w}" height="${f.Y(0) - f.Y(x.n)}" fill="${CC().small}"><title>${lab(x.t)}: ${x.n} sismos (${x.big} con M ≥ 4.5)</title></rect>`;
+    if (x.big) body += `<rect x="${xx}" y="${f.Y(x.big)}" width="${w}" height="${f.Y(0) - f.Y(x.big)}" fill="${CC().big}" pointer-events="none"/>`;
     if (i % every === 0) body += `<text x="${f.X(i) + bw / 2}" y="${f.m.t + f.ih + 13}" text-anchor="middle">${lab(x.t)}</text>`;
   });
-  return chart(`Sismos por ${unit}`, `<span style="color:#b8321f">■</span> M ≥ 4.5 &nbsp; <span style="color:#9aa4ae">■</span> M &lt; 4.5 · hora de Perú`, svg(h, body));
+  return chart(`Sismos por ${unit}`, `<span style="color:${CC().big}">■</span> M ≥ 4.5 &nbsp; <span style="color:${CC().small}">■</span> M &lt; 4.5 · hora de Perú`, svg(h, body));
 }
 function chartMagTime(V, b){
   if (!V.length) return "";
@@ -127,11 +129,11 @@ function chartGR(V, bv){
   const yt = []; for (let v = 1; v <= ymax; v *= 10) yt.push(v);
   let body = axes(f, niceTicks(Math.floor(mn * 2) / 2, Math.ceil((mx + .05) * 2) / 2, 5), yt, v => v.toFixed(1), v => nf(v), "Magnitud", "N");
   nonc.forEach(([m, n]) => body += `<rect x="${f.X(m) - 1.6}" y="${f.Y(n)}" width="3.2" height="${f.Y(1) - f.Y(n)}" fill="#cfd5db"/>`);
-  pts.forEach(([m, n]) => body += `<circle cx="${f.X(m)}" cy="${f.Y(n)}" r="2.6" fill="${bv && m >= bv.Mc - 1e-9 ? "#b8321f" : "#7b8590"}"><title>M ≥ ${m.toFixed(1)}: ${n}</title></circle>`);
+  pts.forEach(([m, n]) => body += `<circle cx="${f.X(m)}" cy="${f.Y(n)}" r="2.6" fill="${bv && m >= bv.Mc - 1e-9 ? CC().big : CC().pt}"><title>M ≥ ${m.toFixed(1)}: ${n}</title></circle>`);
   let cap = "Puntos: número acumulado N(≥M) en escala logarítmica; barras: número por intervalo de 0.1.";
   if (bv && bv.b){
     const yAt = m => Math.pow(10, bv.a - bv.b * m), m1 = bv.Mc, m2 = mx;
-    if (yAt(m2) >= 1) body += `<line x1="${f.X(m1)}" y1="${f.Y(yAt(m1))}" x2="${f.X(m2)}" y2="${f.Y(yAt(m2))}" stroke="#b8321f" stroke-width="1.5" stroke-dasharray="5 3"/>`;
+    if (yAt(m2) >= 1) body += `<line x1="${f.X(m1)}" y1="${f.Y(yAt(m1))}" x2="${f.X(m2)}" y2="${f.Y(yAt(m2))}" stroke="${CC().big}" stroke-width="1.5" stroke-dasharray="5 3"/>`;
     body += `<line x1="${f.X(bv.Mc)}" x2="${f.X(bv.Mc)}" y1="${f.m.t}" y2="${f.m.t + f.ih}" stroke="#888" stroke-dasharray="2 2"/><text x="${f.X(bv.Mc) + 3}" y="${f.m.t + 9}">Mc ${bv.Mc.toFixed(1)}</text>`;
     cap += ` Línea: ajuste de máxima verosimilitud, b = ${bv.b.toFixed(2)} ± ${bv.sb.toFixed(2)} (n = ${nf(bv.n)}, M ≥ ${bv.Mc.toFixed(1)}).`;
   }

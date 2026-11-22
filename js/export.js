@@ -148,7 +148,7 @@ async function exportPNG(o, withTiles){
         const i = r.i;
         if (i.type === "tri"){ tri(x + 6, cy, 13, i.color, i.active); }
         else if (i.type === "dot"){ ctx.beginPath(); ctx.arc(x + 6, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = i.color; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 1; ctx.stroke(); }
-        else if (i.type === "city"){ ctx.beginPath(); ctx.arc(x + 6, cy, i.main ? 4.5 : 3, 0, 2 * Math.PI); ctx.fillStyle = i.main ? A.TC("cityFill") : A.TC("secFill"); ctx.fill(); ctx.strokeStyle = P.fg; ctx.lineWidth = i.main ? 1.8 : 1; ctx.stroke(); }
+        else if (i.type === "city"){ ctx.beginPath(); ctx.arc(x + 6, cy, i.main ? 5 : 3.6, 0, 2 * Math.PI); ctx.fillStyle = i.main ? A.TC("cityFill") : A.TC("secFill"); ctx.fill(); ctx.strokeStyle = i.main ? A.TC("cityStroke") : A.TC("secStroke"); ctx.lineWidth = i.main ? 2 : 1.3; ctx.stroke(); }
         else { ctx.beginPath(); ctx.setLineDash(i.dash || []); ctx.moveTo(x, cy); ctx.lineTo(x + 20, cy); ctx.strokeStyle = i.color; ctx.lineWidth = Math.max(1.3, i.width); ctx.stroke(); ctx.setLineDash([]); }
         ctx.font = `400 11px ${FONT}`; ctx.fillStyle = P.ink; ctx.fillText(i.label, x + 26, cy + 1);
       }

@@ -42,11 +42,18 @@ function colorOf(e){
   return depthColor(e.prof);
 }
 const radiusOf = m => Math.min(26, Math.max(3, Math.pow(1.75, m - 1.2)));
-const lightBg = c => ["#f7e04b","#f2c12e","#9ecae1","#bdbdbd"].includes(c);
+// black or white text, whichever contrasts more with a hex background (WCAG relative luminance)
+function textOn(hex){
+  const v = hex.replace("#", ""), ch = i => { const x = parseInt(v.substr(i, 2), 16) / 255; return x <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); };
+  const Lb = .2126 * ch(0) + .7152 * ch(2) + .0722 * ch(4);
+  return (1.05 / (Lb + .05)) >= ((Lb + .05) / .05) ? "#ffffff" : "#111111";
+}
+APP.textOn = textOn;
 // Theme-dependent colours of reference layers (light / dark mode)
 const THEME_COLORS = {
-  light:{dep:"#5b6470", sub:"#111111", autopista:"#c2410c", principal:"#7c5a2e", secundaria:"#a4906f", cityFill:"#ffffff", cityStroke:"#222222", secFill:"#888888", quakeStroke:"#2b2b2b"},
-  dark: {dep:"#9aa3ae", sub:"#eeeeee", autopista:"#fb923c", principal:"#c9a26a", secundaria:"#8f7d62", cityFill:"#ffffff", cityStroke:"#111111", secFill:"#b5b5b5", quakeStroke:"#111111"}
+  // roads: dark grey on the light theme, light grey on the dark theme (faults keep their colours)
+  light:{dep:"#6b7280", sub:"#111111", autopista:"#111111", principal:"#3a3a3a", secundaria:"#7d7d7d", cityFill:"#ffffff", cityStroke:"#000000", secFill:"#000000", secStroke:"#ffffff"},
+  dark: {dep:"#a3acb7", sub:"#eeeeee", autopista:"#f5f5f5", principal:"#c2c2c2", secundaria:"#8e8e8e", cityFill:"#ffffff", cityStroke:"#000000", secFill:"#000000", secStroke:"#ffffff"}
 };
 APP.theme = "light";
 const TC = k => THEME_COLORS[APP.theme][k];
@@ -55,7 +62,7 @@ APP.TC = TC;
 const FAULT_STYLE = {subduccion:[null,3,"Subducción (fosa)"], inversa:["#c0392b",1.8,"Falla inversa"], normal:["#1f5fbf",1.8,"Falla normal"],
   dextral:["#1a9850",1.8,"Falla dextral"], sinistral:["#8e44ad",1.8,"Falla sinistral"], rumbo:["#0e9aa7",1.8,"Falla de rumbo (sentido no definido)"], otra:["#8a7660",1.4,"Cinemática no especificada"]};
 const faultStyleOf = c => { const s = FAULT_STYLE[c] || FAULT_STYLE.otra; return [s[0] || TC("sub"), s[1], s[2]]; };
-const ROAD_STYLE = {autopista:{weight:3,label:"Autopista / vía expresa"}, principal:{weight:1.9,label:"Carretera principal"}, secundaria:{weight:1.1,dashArray:"4 3",label:"Carretera secundaria"}};
+const ROAD_STYLE = {autopista:{weight:3,label:"Autopista / vía expresa"}, principal:{weight:1.9,label:"Carretera principal"}, secundaria:{weight:1.1,label:"Carretera secundaria"}};
 const roadStyle = c => ({...ROAD_STYLE[c], color:TC(c), opacity:.85});
 const PLATES = {NZ:"Nazca", SA:"Sudamericana", CO:"Cocos", PM:"Panamá", CA:"Caribe", ND:"Andes del Norte", AP:"Altiplano"};
 const plateName = n => n.split(/[-\\/]/).map(c => PLATES[c] || c).join(" – ");
@@ -75,7 +82,8 @@ APP.base = "light";            // the theme code below may switch it to "dark" b
 map.createPane("quakes").style.zIndex = 420;        // only for the "latest quake" pulse marker
 // One canvas for every vector layer: with one canvas per pane the top canvas would
 // swallow all mouse events and hide tooltips/clicks of the layers below it.
-const R = APP.renderer = L.canvas({padding:.3});
+// tolerance: extra pixels around lines and points that still count as hover/click
+const R = APP.renderer = L.canvas({padding:.3, tolerance:8});
 
 const L_ = APP.layers = {};
 L_.quakes = L.layerGroup().addTo(map);
@@ -104,7 +112,8 @@ L_.faults = L.geoJSON(null, {renderer:R,
   }}).addTo(map);
 // Volcanoes: triangles coloured by IGP (2022) hazard level; filled = active, hollow = potentially active
 const VOLC_COLORS = APP.VOLC_COLORS = {"Muy alta":"#7a0019", "Alta":"#d7301f", "Moderada":"#f46d43", "Baja":"#fdae61", "Muy baja":"#fee08b"};
-const volcSize = h => h === "Muy alta" ? 20 : h === "Alta" ? 17 : 14;
+const volcSize = h => h === "Muy alta" ? 26 : h === "Alta" ? 23 : 20;
+const VOLC_PAD = 7;            // transparent margin around the triangle: larger hover/click target
 function volcSvg(p){
   const s = volcSize(p.peligrosidad), c = VOLC_COLORS[p.peligrosidad] || "#999", act = p.estado === "Activo";
   return `<svg width="${s}" height="${s}" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 L18.5 17.5 L1.5 17.5 Z" fill="${act ? c : "#fff"}" stroke="${act ? "#1a1a1a" : c}" stroke-width="${act ? 1.4 : 3}" stroke-linejoin="round"/>${act ? "" : `<path d="M10 2 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="#1a1a1a" stroke-width=".8" stroke-linejoin="round"/>`}</svg>`;
@@ -245,14 +254,14 @@ function drawLegend(){
     ? `<div class="sizes">${s.sizes.map(m => { const r = radiusOf(m); return `<span><i style="width:${2*r}px;height:${2*r}px"></i>${m}</span>`; }).join("")}</div>`
     : s.items.map(i => i.type === "dot" ? `<div><span class="sw" style="background:${i.color}"></span>${i.label}</div>`
       : i.type === "tri" ? `<div><svg width="13" height="13" viewBox="0 0 20 20" style="margin-right:6px;vertical-align:-1px"><path d="M10 2 L18.5 17.5 L1.5 17.5 Z" fill="${i.active ? i.color : "#fff"}" stroke="${i.active ? "#1a1a1a" : i.color}" stroke-width="${i.active ? 1.4 : 3}"/></svg>${i.label}</div>`
-      : i.type === "city" ? `<div><span class="sw" style="background:${i.main ? TC("cityFill") : TC("secFill")};border:${i.main ? "2px solid #222" : "1px solid #555"};width:${i.main ? 10 : 7}px;height:${i.main ? 10 : 7}px;margin-left:${i.main ? 0 : 2}px"></span>${i.label}</div>`
+      : i.type === "city" ? `<div><span class="sw" style="background:${i.main ? TC("cityFill") : TC("secFill")};border:${i.main ? "2px solid " + TC("cityStroke") : "1.5px solid " + TC("secStroke")};box-shadow:0 0 0 1px ${i.main ? "transparent" : "#000"};width:${i.main ? 11 : 8}px;height:${i.main ? 11 : 8}px;margin-left:${i.main ? 0 : 2}px"></span>${i.label}</div>`
       : `<div><span class="ln" style="border-top:${Math.max(2.5, i.width)}px ${i.dash ? "dashed" : "solid"} ${i.color}"></span>${i.label}</div>`).join(""))).join("");
 }
 APP.drawLegend = drawLegend;
 map.on("overlayadd overlayremove", drawLegend);
 
 // ---------------------------------------------------------------- state & period
-const state = APP.state = {mode:"30", dia:null, mes:null, anio:null, d0:null, d1:null, mag:3, depth:"all", region:"", loc:"", q:"", sort:"t"};
+const state = APP.state = {mode:"30", dia:null, mes:null, anio:null, d0:null, d1:null, mag:4.5, depth:"all", region:"", loc:"", q:"", sort:"t"};
 APP.ALL = []; APP.VIEW = [];
 let markers = new Map(), selected = null, shown = 300, pulse = null;
 
@@ -352,7 +361,7 @@ async function loadLayers(){
   if (car) L_.roads.addData(car);
   if (vol) vol.features.forEach(f => {
     const [lon, lat] = f.geometry.coordinates, p = f.properties, sz = volcSize(p.peligrosidad);
-    const m = L.marker([lat, lon], {pane:"volcanoes", icon:L.divIcon({className:"volc-icon", html:volcSvg(p), iconSize:[sz, sz], iconAnchor:[sz / 2, sz * .6]}), keyboard:false, volc:p});
+    const m = L.marker([lat, lon], {pane:"volcanoes", icon:L.divIcon({className:"volc-icon", html:volcSvg(p), iconSize:[sz + 2 * VOLC_PAD, sz + 2 * VOLC_PAD], iconAnchor:[sz / 2 + VOLC_PAD, sz * .6 + VOLC_PAD]}), keyboard:false, volc:p});
     m.bindTooltip(`<b>Volcán ${esc(p.nombre)}</b><br><span class="tip-sub">${esc(p.estado)} · peligrosidad ${esc(p.peligrosidad.toLowerCase())}</span>`, {direction:"top", offset:[0, -sz * .5]});
     m.bindPopup(`<div class="pop"><h3>${/^Campo|^Cerro/.test(p.nombre) ? "" : "Volcán "}${esc(p.nombre)}</h3><div class="sub">${esc(p.estado)} · ${esc(p.region)}</div><table>
       <tr><td>Peligrosidad</td><td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${VOLC_COLORS[p.peligrosidad]};margin-right:5px"></span>${esc(p.peligrosidad)} (IGP, 2022)</td></tr>
@@ -371,7 +380,7 @@ async function loadLayers(){
   });
   if (ciu) ciu.features.forEach(f => {
     const [lon, lat] = f.geometry.coordinates, p = f.properties, main = p.rango === "principal";
-    const m = L.circleMarker([lat, lon], {renderer:R, radius: p.capital === "Capital nacional" ? 5.5 : main ? 4 : 2.6, main, color:TC("cityStroke"), weight: main ? 1.8 : 1, fillColor: main ? TC("cityFill") : TC("secFill"), fillOpacity:1});
+    const m = L.circleMarker([lat, lon], {renderer:R, radius: p.capital === "Capital nacional" ? 6.5 : main ? 5 : 3.6, main, color: main ? TC("cityStroke") : TC("secStroke"), weight: main ? 2 : 1.3, fillColor: main ? TC("cityFill") : TC("secFill"), fillOpacity:1});
     m.bindTooltip(esc(p.nombre), {permanent:true, direction:"right", offset:[5,0], className:`lbl ${main ? "city-main" : "city-sec"}`, interactive:false});
     m.bindPopup(`<div class="pop"><h3>${esc(p.nombre)}</h3><div class="sub">${p.capital ? esc(p.capital) : main ? "Ciudad principal" : "Ciudad secundaria"}</div>${p.pob ? `Población aprox.: ${nf(p.pob)} hab. (Natural Earth)` : ""}</div>`);
     m.addTo(main ? L_.citiesMain : L_.citiesSec);
@@ -425,7 +434,7 @@ async function loadQuakes(initial){
 
 function drawLatest(){
   const e = APP.ALL[0]; if (!e) return;
-  $("#latest").innerHTML = `<div class="m" style="background:${depthColor(e.prof)}">${e.mag.toFixed(1)}</div>
+  $("#latest").innerHTML = `<div class="m" style="background:${depthColor(e.prof)};color:${textOn(depthColor(e.prof))}">${e.mag.toFixed(1)}</div>
     <div class="t"><b>Último sismo: ${esc(e.ref)}</b><br>${fmtLocal(e.t)} hora local · ${ago(e.t)} · ${e.prof ?? "?"} km</div>`;
   $("#latest").onclick = () => { ensureVisible(e); select(e.id, true); };
   if (pulse) pulse.remove();
@@ -486,8 +495,8 @@ function drawSummary(){
   const mx = V.length ? V.reduce((a, e) => e.mag > a.mag ? e : a) : null;
   box.classList.add("summary");
   box.innerHTML = `<div class="big">${nf(V.length)} sismos · ${esc(b.label)}</div>`
-    + (mx ? `<div>Mayor: M${mx.mag.toFixed(1)} · ${fmtDate(mx.t)}<br><span style="color:#666">${esc(mx.ref)}</span></div>` : "")
-    + `<div style="color:#666">${esc(APP.filterText() || "Sin filtros adicionales")}</div>`;
+    + (mx ? `<div>Mayor: M${mx.mag.toFixed(1)} · ${fmtDate(mx.t)}<br><span class="muted">${esc(mx.ref)}</span></div>` : "")
+    + `<div class="muted">${esc(APP.filterText() || "Sin filtros adicionales")}</div>`;
 }
 
 // ---------------------------------------------------------------- list
@@ -502,7 +511,7 @@ function drawList(){
   $("#listcount").textContent = `${nf(v.length)} resultados`;
   if (!v.length){ list.innerHTML = '<div class="empty">Ningún sismo cumple los filtros.</div>'; return; }
   list.innerHTML = v.slice(0, shown).map(e => { const c = colorOf(e); return `<div class="ev${e.id === selected ? " sel" : ""}" data-id="${esc(e.id)}">
-      <div class="mag" style="background:${c};${lightBg(c) ? "color:#222" : ""}">${e.mag.toFixed(1)}</div>
+      <div class="mag" style="background:${c};color:${textOn(c)}">${e.mag.toFixed(1)}</div>
       <div><div class="ref">${esc(e.ref)}</div><div class="meta">${fmtLocal(e.t, false)} · ${ago(e.t)} · ${e.prof ?? "?"} km${e.int ? " · Int. " + esc(e.int) : ""}</div></div></div>`; }).join("")
     + (v.length > shown ? `<button id="more">Mostrar más (${nf(v.length - shown)} restantes)</button>` : "");
   const more = $("#more"); if (more) more.onclick = () => { shown += 300; drawList(); };
@@ -591,7 +600,7 @@ function applyTheme(t){
     L_.deps.setStyle(depStyle());
     L_.roads.setStyle(f => roadStyle(f.properties.clase));
     L_.faults.setStyle(f => { const s = faultStyleOf(f.properties.clase); return {color:s[0], weight:s[1], opacity:.85}; });
-    [L_.citiesMain, L_.citiesSec].forEach(g => g.eachLayer(m => m.setStyle({color:TC("cityStroke"), fillColor:m.options.main ? TC("cityFill") : TC("secFill")})));
+    [L_.citiesMain, L_.citiesSec].forEach(g => g.eachLayer(m => m.setStyle({color:m.options.main ? TC("cityStroke") : TC("secStroke"), fillColor:m.options.main ? TC("cityFill") : TC("secFill")})));
     drawLayersWin(); drawLegend();
     if (APP.drawStats){ APP.statsDirty = true; APP.maybeDrawStats(); }
   }

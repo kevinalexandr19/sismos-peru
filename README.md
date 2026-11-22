@@ -6,7 +6,7 @@ Mapa web 2D de los sismos reportados por el **Instituto Geofísico del Perú (IG
 
 ## Motivación
 
-El portal del IGP presenta los reportes sísmicos de uno en uno. Esta aplicación surge como una herramienta complementaria que recopila los datos publicados por el IGP y muestra todos los registros disponibles a la vez: en un mapa, en un catálogo filtrable y en estadísticas, junto con fallas activas, ciudades, carreteras y límites departamentales. No reemplaza al IGP, que sigue siendo la fuente oficial de información sísmica del Perú.
+El portal del IGP presenta los reportes sísmicos de uno en uno. Esta aplicación surge como una herramienta complementaria que recopila los datos publicados por el IGP y muestra todos los registros disponibles a la vez: en un mapa, en un catálogo filtrable y en estadísticas. Además, superpone las fallas activas (información que el portal del IGP no muestra), junto con límites de placas, ciudades, carreteras y límites departamentales, para ver cada sismo en su contexto tectónico. No reemplaza al IGP, que sigue siendo la fuente oficial de información sísmica del Perú.
 
 ## Funciones
 

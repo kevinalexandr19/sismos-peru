@@ -2,6 +2,12 @@
 
 Mapa web 2D de los sismos reportados por el **Instituto Geofísico del Perú (IGP) – Centro Sismológico Nacional**, inspirado en el mapa de sismos del USGS. Se publica en GitHub Pages y se actualiza automáticamente.
 
+**Sitio:** https://kevinalexandr19.github.io/sismos-peru/
+
+## Motivación
+
+El portal del IGP presenta los reportes sísmicos de uno en uno. Esta aplicación surge como una herramienta complementaria que recopila los datos publicados por el IGP y muestra todos los registros disponibles a la vez: en un mapa, en un catálogo filtrable y en estadísticas, junto con fallas activas, ciudades, carreteras y límites departamentales. No reemplaza al IGP, que sigue siendo la fuente oficial de información sísmica del Perú.
+
 ## Funciones
 
 - Catálogo de sismos reportados por el IGP desde 2019 (código, fecha y hora local/UTC, magnitud, profundidad, epicentro, referencia, intensidad y enlace al reporte acelerométrico en PDF).

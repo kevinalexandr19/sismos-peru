@@ -213,7 +213,7 @@ function setWin(k, open){
   document.querySelector(".toolbar [data-all] .tx").textContent = anyOpen ? "Ocultar todo" : "Mostrar todo";
   try { localStorage.setItem("win-" + k, open ? "1" : "0"); } catch (e) {}
 }
-const small = innerWidth < 820;
+const small = innerWidth < 820 || map.getSize().x < 760;   // narrow map: windows start closed (the choice is remembered)
 Object.keys(WINS).forEach(k => {
   let saved = null; try { saved = localStorage.getItem("win-" + k); } catch (e) {}
   setWin(k, saved != null ? saved === "1" : !small);
@@ -445,7 +445,7 @@ async function loadQuakes(initial){
 function drawLatest(){
   const e = APP.ALL[0]; if (!e) return;
   $("#latest").innerHTML = `<div class="m" style="background:${depthColor(e.prof)};color:${textOn(depthColor(e.prof))}">${e.mag.toFixed(1)}</div>
-    <div class="t"><b>Último sismo: ${esc(e.ref)}</b><br>${fmtLocal(e.t)} hora local · ${ago(e.t)} · ${e.prof ?? "?"} km</div>`;
+    <div class="t"><b>Último sismo: ${esc(e.ref)}</b><span class="sub">${fmtLocal(e.t, false)} hora local · ${ago(e.t)} · ${e.prof ?? "?"} km</span></div>`;
   $("#latest").onclick = () => { ensureVisible(e); select(e.id, true); };
   if (pulse) pulse.remove();
   pulse = L.marker([e.lat, e.lon], {icon:L.divIcon({className:"", html:'<div class="pulse"></div>', iconSize:[34,34], iconAnchor:[17,17]}), interactive:false, pane:"quakes"}).addTo(map);

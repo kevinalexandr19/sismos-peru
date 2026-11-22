@@ -11,15 +11,19 @@ main{display:grid;grid-template-columns:400px 1fr;height:100%;min-height:0;posit
 .brand h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px}
 #updated{font-size:11.5px;color:#c4cbd3;margin-top:1px}
 /* map column: the map shrinks when the cross-section panel is open */
-#mapwrap{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0}
+#mapwrap{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;container-type:inline-size;container-name:mapw}
 #mapwrap #map{flex:1}
 /* latest-earthquake card floating over the map */
-#latest{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:10px;background:rgba(32,38,46,.94);color:#fff;border-radius:10px;padding:6px 12px 6px 6px;cursor:pointer;max-width:min(470px,calc(100% - 470px));box-shadow:0 2px 10px rgba(0,0,0,.3)}
+#latest{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:999;min-width:230px;display:flex;align-items:center;gap:10px;background:rgba(32,38,46,.94);color:#fff;border-radius:10px;padding:6px 12px 6px 6px;cursor:pointer;max-width:min(470px,calc(100% - 470px));box-shadow:0 2px 10px rgba(0,0,0,.3)}
 #latest:empty{display:none}
 #latest:hover{background:rgba(45,53,63,.97)}
 #latest .m{font-weight:700;font-size:18px;min-width:40px;text-align:center;border-radius:7px;padding:3px 6px;color:#fff;flex:0 0 auto}
 #latest .t{font-size:12px;color:#d5dbe1;line-height:1.3;min-width:0}
-#latest .t b{color:#fff;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#latest .t b,#latest .t .sub{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#latest .t b{color:#fff;font-weight:600}
+/* narrow map column: dock the card next to the zoom buttons, clear of the right-hand windows */
+@container mapw (max-width: 1000px){ #latest{left:56px;transform:none;max-width:calc(100% - 56px - 300px)} }
+@container mapw (max-width: 620px){ #latest{max-width:calc(100% - 70px)} }
 #toggle-panel{display:none;position:absolute;top:10px;left:10px;z-index:1001;background:var(--dark);color:#fff;border:0;border-radius:8px;width:40px;height:36px;font-size:18px;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.35)}
 aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 #map{min-height:0;background:#dfe6ea}

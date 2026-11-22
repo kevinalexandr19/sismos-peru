@@ -102,6 +102,16 @@ L_.faults = L.geoJSON(null, {renderer:R,
     l.on("mouseover", () => { l.setStyle({weight:w + 2.5, opacity:1}); });
     l.on("mouseout", () => L_.faults.resetStyle(l));
   }}).addTo(map);
+// Volcanoes: triangles coloured by IGP (2022) hazard level; filled = active, hollow = potentially active
+const VOLC_COLORS = APP.VOLC_COLORS = {"Muy alta":"#7a0019", "Alta":"#d7301f", "Moderada":"#f46d43", "Baja":"#fdae61", "Muy baja":"#fee08b"};
+const volcSize = h => h === "Muy alta" ? 20 : h === "Alta" ? 17 : 14;
+function volcSvg(p){
+  const s = volcSize(p.peligrosidad), c = VOLC_COLORS[p.peligrosidad] || "#999", act = p.estado === "Activo";
+  return `<svg width="${s}" height="${s}" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 L18.5 17.5 L1.5 17.5 Z" fill="${act ? c : "#fff"}" stroke="${act ? "#1a1a1a" : c}" stroke-width="${act ? 1.4 : 3}" stroke-linejoin="round"/>${act ? "" : `<path d="M10 2 L18.5 17.5 L1.5 17.5 Z" fill="none" stroke="#1a1a1a" stroke-width=".8" stroke-linejoin="round"/>`}</svg>`;
+}
+APP.volcSize = volcSize;
+map.createPane("volcanoes").style.zIndex = 430;
+L_.volcanoes = L.layerGroup().addTo(map);
 L_.plates = L.geoJSON(null, {renderer:R, style:{color:"#e8590c", weight:2.2, opacity:.8, dashArray:"8 5"},
   onEachFeature:(f, l) => l.bindTooltip(`Límite de placas: ${esc(plateName(f.properties.Name || ""))}${f.properties.Type === "subduction" ? "<br><span class=\"tip-sub\">zona de subducción</span>" : ""}`, {sticky:true})});
 const titleCase = s => s.toLowerCase().replace(/(^|[\s(-])\S/g, c => c.toUpperCase());
@@ -116,14 +126,14 @@ APP.restack = restack;
 APP.LAYER_DEFS = [
   ["quakes","Sismos"],["heat","Mapa de calor de sismos"],["deps","Límites departamentales"],["depLabels","Nombres de departamentos"],
   ["citiesMain","Ciudades principales"],["citiesSec","Ciudades secundarias"],["roads","Carreteras y autopistas"],
-  ["faults","Fallas activas"],["plates","Límites de placas"]
+  ["faults","Fallas activas"],["volcanoes","Volcanes activos y potencialmente activos"],["plates","Límites de placas"]
 ];
 L.control.scale({imperial:false, position:"bottomleft"}).addTo(map);
 
 // label visibility by zoom (the layer checkbox decides whether labels exist at all)
 function labelZoom(){
   const z = map.getZoom(), c = map.getContainer().classList;
-  c.toggle("hide-dep", z < 5.5); c.toggle("hide-main", z < 5); c.toggle("hide-sec", z < 7);
+  c.toggle("hide-dep", z < 5.5); c.toggle("hide-main", z < 5); c.toggle("hide-sec", z < 7); c.toggle("hide-volc", z < 6);
   declutter();
 }
 // hide labels that would overlap a higher-priority one (bigger cities first, then departments)
@@ -217,6 +227,9 @@ APP.legendModel = function(){
   }
   if (map.hasLayer(L_.faults)) S.push({title:"Fallas activas", items:Object.keys(FAULT_STYLE).map(k => { const s = faultStyleOf(k); return {type:"line", color:s[0], width:s[1], label:s[2]}; })});
   const other = [];
+  if (map.hasLayer(L_.volcanoes)) S.push({title:"Volcanes · peligrosidad (IGP, 2022)", items:[
+    ...Object.entries(VOLC_COLORS).map(([k, c]) => ({type:"tri", color:c, active:true, label:k})),
+    {type:"tri", color:"#888", active:true, label:"Relleno: volcán activo"}, {type:"tri", color:"#888", active:false, label:"Hueco: potencialmente activo"}]});
   if (map.hasLayer(L_.plates)) other.push({type:"line", color:"#e8590c", width:2.2, dash:[8,5], label:"Límite de placas"});
   if (map.hasLayer(L_.roads)) Object.entries(ROAD_STYLE).forEach(([k, r]) => other.push({type:"line", color:TC(k), width:r.weight, dash:r.dashArray ? [4,3] : null, label:r.label}));
   if (map.hasLayer(L_.citiesMain)) other.push({type:"city", main:true, label:"Ciudad principal"});
@@ -231,6 +244,7 @@ function drawLegend(){
   b.innerHTML = APP.legendModel().map(s => `<h4>${s.title}</h4>` + (s.sizes
     ? `<div class="sizes">${s.sizes.map(m => { const r = radiusOf(m); return `<span><i style="width:${2*r}px;height:${2*r}px"></i>${m}</span>`; }).join("")}</div>`
     : s.items.map(i => i.type === "dot" ? `<div><span class="sw" style="background:${i.color}"></span>${i.label}</div>`
+      : i.type === "tri" ? `<div><svg width="13" height="13" viewBox="0 0 20 20" style="margin-right:6px;vertical-align:-1px"><path d="M10 2 L18.5 17.5 L1.5 17.5 Z" fill="${i.active ? i.color : "#fff"}" stroke="${i.active ? "#1a1a1a" : i.color}" stroke-width="${i.active ? 1.4 : 3}"/></svg>${i.label}</div>`
       : i.type === "city" ? `<div><span class="sw" style="background:${i.main ? TC("cityFill") : TC("secFill")};border:${i.main ? "2px solid #222" : "1px solid #555"};width:${i.main ? 10 : 7}px;height:${i.main ? 10 : 7}px;margin-left:${i.main ? 0 : 2}px"></span>${i.label}</div>`
       : `<div><span class="ln" style="border-top:${Math.max(2.5, i.width)}px ${i.dash ? "dashed" : "solid"} ${i.color}"></span>${i.label}</div>`).join(""))).join("");
 }
@@ -318,9 +332,9 @@ const DEP_NAMES = {AMAZONAS:"Amazonas",ANCASH:"Áncash",APURIMAC:"Apurímac",ARE
 APP.DEP_NAMES = DEP_NAMES;
 
 async function loadLayers(){
-  const names = ["departamentos","fallas_activas","placas","ciudades","carreteras"];
+  const names = ["departamentos","fallas_activas","placas","ciudades","carreteras","volcanes"];
   const res = await Promise.allSettled(names.map(n => getJSON(`data/${n}.geojson`)));
-  const [dep, fal, pla, ciu, car] = res.map(r => r.status === "fulfilled" ? r.value : null);
+  const [dep, fal, pla, ciu, car, vol] = res.map(r => r.status === "fulfilled" ? r.value : null);
   if (dep){
     L_.deps.addData(dep);
     L_.deps.eachLayer(l => {
@@ -336,6 +350,25 @@ async function loadLayers(){
   if (fal) L_.faults.addData(fal);
   if (pla) L_.plates.addData(pla);
   if (car) L_.roads.addData(car);
+  if (vol) vol.features.forEach(f => {
+    const [lon, lat] = f.geometry.coordinates, p = f.properties, sz = volcSize(p.peligrosidad);
+    const m = L.marker([lat, lon], {pane:"volcanoes", icon:L.divIcon({className:"volc-icon", html:volcSvg(p), iconSize:[sz, sz], iconAnchor:[sz / 2, sz * .6]}), keyboard:false, volc:p});
+    m.bindTooltip(`<b>Volcán ${esc(p.nombre)}</b><br><span class="tip-sub">${esc(p.estado)} · peligrosidad ${esc(p.peligrosidad.toLowerCase())}</span>`, {direction:"top", offset:[0, -sz * .5]});
+    m.bindPopup(`<div class="pop"><h3>${/^Campo|^Cerro/.test(p.nombre) ? "" : "Volcán "}${esc(p.nombre)}</h3><div class="sub">${esc(p.estado)} · ${esc(p.region)}</div><table>
+      <tr><td>Peligrosidad</td><td><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${VOLC_COLORS[p.peligrosidad]};margin-right:5px"></span>${esc(p.peligrosidad)} (IGP, 2022)</td></tr>
+      <tr><td>Tipo</td><td>${esc(p.tipo)}</td></tr>
+      <tr><td>Altitud</td><td>${nf(p.elevacion)} m s. n. m.</td></tr>
+      <tr><td>Última erupción</td><td>${esc(p.ultima_erupcion)}</td></tr>
+      <tr><td>Ubicación</td><td>${Math.abs(lat).toFixed(2)}° S, ${Math.abs(lon).toFixed(2)}° O</td></tr></table>
+      <div class="links"><a href="https://volcano.si.edu/volcano.cfm?vn=${p.gvp}" target="_blank" rel="noopener">Ficha en el Global Volcanism Program</a>
+      <a href="https://www.igp.gob.pe/servicios/centro-vulcanologico-nacional/" target="_blank" rel="noopener">Centro Vulcanológico Nacional (IGP)</a></div></div>`);
+    const lbl = L.tooltip({permanent:true, direction:"right", offset:[sz * .55, 0], className:"lbl volc-label", interactive:false}).setLatLng([lat, lon]).setContent(esc(p.nombre.replace("Campo volcánico monogenético ", "CVM ")));
+    m.on("add", () => lbl.addTo(map)); m.on("remove", () => lbl.remove());
+    m.addTo(L_.volcanoes); lbl.addTo(map);
+    // high-hazard volcanoes outrank city names (e.g. Misti next to Arequipa); the rest rank below main cities
+    const rank = {"Muy alta":5,"Alta":4,"Moderada":3,"Baja":2,"Muy baja":1}[p.peligrosidad] || 0;
+    APP.labels.push({tip:lbl, pri:(rank >= 4 ? 5e7 : 1.5e7) + rank * 1e5});
+  });
   if (ciu) ciu.features.forEach(f => {
     const [lon, lat] = f.geometry.coordinates, p = f.properties, main = p.rango === "principal";
     const m = L.circleMarker([lat, lon], {renderer:R, radius: p.capital === "Capital nacional" ? 5.5 : main ? 4 : 2.6, main, color:TC("cityStroke"), weight: main ? 1.8 : 1, fillColor: main ? TC("cityFill") : TC("secFill"), fillOpacity:1});

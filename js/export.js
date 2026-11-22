@@ -74,7 +74,21 @@ async function exportPNG(o, withTiles){
   const canvases = [...map.getPanes().mapPane.querySelectorAll("canvas")].filter(c => !c.closest(".leaflet-tile-pane") && c.width && getComputedStyle(c).display !== "none");
   canvases.sort((a, b) => paneZ(a) - paneZ(b)).forEach(c => { const [x, y, w, h] = at(c); ctx.globalAlpha = opacityChain(c); ctx.drawImage(c, x, y, w, h); });
   ctx.globalAlpha = 1;
-  // 3. permanent labels (departments, cities)
+  // 2b. volcano triangles (DOM markers, drawn from their data)
+  const tri = (x, y, size, color, active) => {
+    const k = size / 20, X = v => x + (v - 10) * k, Y = v => y + (v - 10) * k;
+    ctx.beginPath(); ctx.moveTo(X(10), Y(2)); ctx.lineTo(X(18.5), Y(17.5)); ctx.lineTo(X(1.5), Y(17.5)); ctx.closePath();
+    ctx.lineJoin = "round"; ctx.fillStyle = active ? color : "#fff"; ctx.fill();
+    ctx.strokeStyle = active ? "#1a1a1a" : color; ctx.lineWidth = (active ? 1.4 : 3) * k; ctx.stroke();
+    if (!active){ ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = .8 * k; ctx.stroke(); }
+  };
+  if (map.hasLayer(A.layers.volcanoes)) A.layers.volcanoes.eachLayer(m => {
+    const p = m.options.volc, sz = A.volcSize(p.peligrosidad), pt = map.latLngToContainerPoint(m.getLatLng());
+    const cx = pt.x, cy = pt.y - sz * .6 + sz / 2;            // same anchor as the divIcon
+    if (cx < -20 || cy < -20 || cx > W + 20 || cy > H + 20) return;
+    tri(cx, cy, sz, A.VOLC_COLORS[p.peligrosidad], p.estado === "Activo");
+  });
+  // 3. permanent labels (departments, cities, volcanoes)
   ctx.textBaseline = "middle";
   document.querySelectorAll(".leaflet-tooltip-pane .lbl").forEach(el => {
     const st = getComputedStyle(el); if (st.display === "none" || st.visibility === "hidden") return;
@@ -132,7 +146,8 @@ async function exportPNG(o, withTiles){
           ctx.font = `400 10px ${FONT}`; ctx.fillStyle = P.sub; ctx.textAlign = "center"; ctx.fillText(String(m), cx + rr, base + 7); ctx.textAlign = "left"; cx += 2 * rr + 7; });
       } else {
         const i = r.i;
-        if (i.type === "dot"){ ctx.beginPath(); ctx.arc(x + 6, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = i.color; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 1; ctx.stroke(); }
+        if (i.type === "tri"){ tri(x + 6, cy, 13, i.color, i.active); }
+        else if (i.type === "dot"){ ctx.beginPath(); ctx.arc(x + 6, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = i.color; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 1; ctx.stroke(); }
         else if (i.type === "city"){ ctx.beginPath(); ctx.arc(x + 6, cy, i.main ? 4.5 : 3, 0, 2 * Math.PI); ctx.fillStyle = i.main ? A.TC("cityFill") : A.TC("secFill"); ctx.fill(); ctx.strokeStyle = P.fg; ctx.lineWidth = i.main ? 1.8 : 1; ctx.stroke(); }
         else { ctx.beginPath(); ctx.setLineDash(i.dash || []); ctx.moveTo(x, cy); ctx.lineTo(x + 20, cy); ctx.strokeStyle = i.color; ctx.lineWidth = Math.max(1.3, i.width); ctx.stroke(); ctx.setLineDash([]); }
         ctx.font = `400 11px ${FONT}`; ctx.fillStyle = P.ink; ctx.fillText(i.label, x + 26, cy + 1);
@@ -165,7 +180,7 @@ async function exportPNG(o, withTiles){
 
   // 7. credits (bottom edge)
   const now = Date.now();
-  const credit = `Sismos: IGP – Centro Sismológico Nacional · Fallas: GEM GAF-DB · Ciudades y vías: Natural Earth · Departamentos: INEI${withTiles ? " · Mapa base: " + A.BASES[A.base].credit : ""} · Generado ${A.fmtLocal(now, false)} (hora de Perú)`;
+  const credit = `Sismos: IGP – Centro Sismológico Nacional · Fallas: GEM GAF-DB${map.hasLayer(A.layers.volcanoes) ? " · Volcanes: IGP (2022), Smithsonian GVP" : ""} · Ciudades y vías: Natural Earth · Departamentos: INEI${withTiles ? " · Mapa base: " + A.BASES[A.base].credit : ""} · Generado ${A.fmtLocal(now, false)} (hora de Perú)`;
   ctx.font = `400 9.5px ${FONT}`;
   const cw = Math.min(W - 2 * pad, ctx.measureText(credit).width + 12);
   ctx.fillStyle = P.box80; ctx.fillRect(W - cw - 4, H - 15, cw + 4, 15);

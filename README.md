@@ -15,7 +15,7 @@ El portal del IGP presenta los reportes sísmicos de uno en uno. Esta aplicació
 - Filtros por magnitud mínima, profundidad (superficial ≤ 60 km, intermedia 61–300 km, profunda > 300 km), región del epicentro, epicentro en tierra o en el mar, y texto libre.
 - Pestaña **Estadísticas e insights**: indicadores, textos automáticos (mayor sismo, mayor intensidad, región más activa, día más activo, comparación con el periodo anterior con prueba binomial, valor b) y gráficos (sismos por hora/día/semana/mes, magnitud en el tiempo, Gutenberg–Richter, sección de profundidad, distribución de profundidades, sismos por región).
 - Modo claro y modo oscuro (sigue la preferencia del sistema; se puede cambiar con el botón ☾/☀ y se recuerda).
-- Capas: límites y nombres departamentales, ciudades principales y secundarias, carreteras y autopistas, fallas activas (nombre al pasar el cursor), límites de placas, mapa de calor y cinco mapas base.
+- Capas: límites y nombres departamentales, ciudades principales y secundarias, carreteras y autopistas, fallas activas (nombre al pasar el cursor), volcanes activos y potencialmente activos (por nivel de peligrosidad), límites de placas, mapa de calor y cinco mapas base.
 - Ventanas flotantes (capas, leyenda, resumen) que se ocultan una a una o todas a la vez.
 - Exportación a PNG de la vista actual del mapa, sin la interfaz, con título, resumen de datos, leyenda, escala y norte.
 - Enlace directo a cada sismo (`?evento=2026-0825`) y aviso de sismos nuevos mientras la página está abierta.
@@ -37,6 +37,7 @@ Fuente: `https://ultimosismo.igp.gob.pe/api/ultimo-sismo/ajaxb/{año}`
 |---|---|
 | Sismos | IGP – Centro Sismológico Nacional, reportes sísmicos |
 | Fallas activas | GEM Global Active Faults Database (Styron & Pagani, 2020, *Earthquake Spectra*), recortada al Perú; nombres y cinemática traducidos al español con `scripts/traducir_fallas.py` |
+| Volcanes | 17 volcanes activos y potencialmente activos evaluados por el IGP (Informe Técnico N.° 029-2022/IGP, nivel de peligrosidad); estado activo según INGEMMET; coordenadas, altitud y última erupción del Smithsonian Global Volcanism Program (`scripts/prep_volcanes.py`) |
 | Mapas base | Esri (gris claro, gris oscuro, relieve, satélite) y OpenStreetMap |
 | Límites de placas | Bird (2003), modelo PB2002 |
 | Departamentos | INEI, vía [juaneladio/peru-geojson](https://github.com/juaneladio/peru-geojson) |

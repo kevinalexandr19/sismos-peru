@@ -1,0 +1,362 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -71.4056,
+     -16.2991
+    ]
+   },
+   "properties": {
+    "nombre": "Misti",
+    "gvp": 354010,
+    "gvp_nombre": "Misti, El",
+    "tipo": "Estratovolcán",
+    "elevacion": 5793,
+    "ultima_erupcion": "1985 (GVP)",
+    "peligrosidad": "Muy alta",
+    "estado": "Activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -71.857,
+     -15.787
+    ]
+   },
+   "properties": {
+    "nombre": "Sabancaya",
+    "gvp": 354006,
+    "gvp_nombre": "Sabancaya",
+    "tipo": "Estratovolcán (complejo)",
+    "elevacion": 5960,
+    "ultima_erupcion": "2026, en erupción desde 2016 (GVP)",
+    "peligrosidad": "Muy alta",
+    "estado": "Activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -70.8972,
+     -16.345
+    ]
+   },
+   "properties": {
+    "nombre": "Ubinas",
+    "gvp": 354020,
+    "gvp_nombre": "Ubinas",
+    "tipo": "Estratovolcán",
+    "elevacion": 5608,
+    "ultima_erupcion": "2024 (GVP)",
+    "peligrosidad": "Muy alta",
+    "estado": "Activo",
+    "region": "Moquegua"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -71.5292,
+     -16.1792
+    ]
+   },
+   "properties": {
+    "nombre": "Chachani",
+    "gvp": 354007,
+    "gvp_nombre": "Chachani Volcanic Complex",
+    "tipo": "Estratovolcán",
+    "elevacion": 6059,
+    "ultima_erupcion": "Sin erupciones holocenas confirmadas (GVP)",
+    "peligrosidad": "Alta",
+    "estado": "Potencialmente activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -72.65,
+     -15.52
+    ]
+   },
+   "properties": {
+    "nombre": "Coropuna",
+    "gvp": 354003,
+    "gvp_nombre": "Coropuna",
+    "tipo": "Estratovolcán",
+    "elevacion": 6377,
+    "ultima_erupcion": "hace ~1500 años (IGP)",
+    "peligrosidad": "Alta",
+    "estado": "Activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -70.8542,
+     -16.6144
+    ]
+   },
+   "properties": {
+    "nombre": "Huaynaputina",
+    "gvp": 354030,
+    "gvp_nombre": "Huaynaputina",
+    "tipo": "Estratovolcán",
+    "elevacion": 4679,
+    "ultima_erupcion": "1600 (GVP)",
+    "peligrosidad": "Alta",
+    "estado": "Activo",
+    "region": "Moquegua"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -70.5981,
+     -16.7586
+    ]
+   },
+   "properties": {
+    "nombre": "Ticsani",
+    "gvp": 354031,
+    "gvp_nombre": "Ticsani",
+    "tipo": "Domos de lava",
+    "elevacion": 5382,
+    "ultima_erupcion": "1800 (GVP)",
+    "peligrosidad": "Alta",
+    "estado": "Activo",
+    "region": "Moquegua"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -73.4456,
+     -15.3299
+    ]
+   },
+   "properties": {
+    "nombre": "Sara Sara",
+    "gvp": 354002,
+    "gvp_nombre": "Sara Sara",
+    "tipo": "Estratovolcán",
+    "elevacion": 5490,
+    "ultima_erupcion": "hace ~14 000 años (IGP)",
+    "peligrosidad": "Moderada",
+    "estado": "Potencialmente activo",
+    "region": "Ayacucho"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -72.9,
+     -15.4
+    ]
+   },
+   "properties": {
+    "nombre": "Solimana",
+    "gvp": 354803,
+    "gvp_nombre": "Solimana",
+    "tipo": "Estratovolcán",
+    "elevacion": 6093,
+    "ultima_erupcion": "hace más de 500 000 años (IGP)",
+    "peligrosidad": "Moderada",
+    "estado": "Potencialmente activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -70.372,
+     -17.026
+    ]
+   },
+   "properties": {
+    "nombre": "Tutupaca",
+    "gvp": 354040,
+    "gvp_nombre": "Tutupaca",
+    "tipo": "Estratovolcán (complejo)",
+    "elevacion": 5801,
+    "ultima_erupcion": "1802 (GVP)",
+    "peligrosidad": "Moderada",
+    "estado": "Activo",
+    "region": "Tacna"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -70.196,
+     -17.184
+    ]
+   },
+   "properties": {
+    "nombre": "Yucamane",
+    "gvp": 354050,
+    "gvp_nombre": "Yucamane",
+    "tipo": "Estratovolcán (complejo)",
+    "elevacion": 5495,
+    "ultima_erupcion": "1320 a. C. (GVP)",
+    "peligrosidad": "Moderada",
+    "estado": "Activo",
+    "region": "Tacna"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -69.7886,
+     -17.4852
+    ]
+   },
+   "properties": {
+    "nombre": "Casiri",
+    "gvp": 354060,
+    "gvp_nombre": "Casiri, Nevados",
+    "tipo": "Estratovolcán (complejo)",
+    "elevacion": 5626,
+    "ultima_erupcion": "hace ~2600 años (IGP)",
+    "peligrosidad": "Baja",
+    "estado": "Activo",
+    "region": "Tacna"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -69.8216,
+     -17.2587
+    ]
+   },
+   "properties": {
+    "nombre": "Purupuruni",
+    "gvp": 354804,
+    "gvp_nombre": "Purupuruni, Cerros",
+    "tipo": "Domos de lava",
+    "elevacion": 4591,
+    "ultima_erupcion": "hace ~5300 años (IGP)",
+    "peligrosidad": "Baja",
+    "estado": "Activo",
+    "region": "Tacna"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -72.33,
+     -15.42
+    ]
+   },
+   "properties": {
+    "nombre": "Campo volcánico monogenético Andagua",
+    "gvp": 354004,
+    "gvp_nombre": "Andahua-Orcopampa",
+    "tipo": "Campo volcánico",
+    "elevacion": 4713,
+    "ultima_erupcion": "1490 (GVP)",
+    "peligrosidad": "Muy baja",
+    "estado": "Potencialmente activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -72.08,
+     -15.78
+    ]
+   },
+   "properties": {
+    "nombre": "Campo volcánico monogenético Huambo",
+    "gvp": 354005,
+    "gvp_nombre": "Huambo",
+    "tipo": "Campo volcánico",
+    "elevacion": 4554,
+    "ultima_erupcion": "700 a. C. (GVP)",
+    "peligrosidad": "Muy baja",
+    "estado": "Potencialmente activo",
+    "region": "Arequipa"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -73.1914,
+     -15.0726
+    ]
+   },
+   "properties": {
+    "nombre": "Cerro Auquihuato",
+    "gvp": 354001,
+    "gvp_nombre": "Auquihuato, Cerro",
+    "tipo": "Cono piroclástico",
+    "elevacion": 5001,
+    "ultima_erupcion": "Holoceno, sin fecha conocida (GVP)",
+    "peligrosidad": "Muy baja",
+    "estado": "Potencialmente activo",
+    "region": "Ayacucho"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -71.363,
+     -14.131
+    ]
+   },
+   "properties": {
+    "nombre": "Quimsachata",
+    "gvp": 354000,
+    "gvp_nombre": "Quimsachata-Oroscocha",
+    "tipo": "Domo de lava",
+    "elevacion": 3848,
+    "ultima_erupcion": "4450 a. C. (GVP)",
+    "peligrosidad": "Muy baja",
+    "estado": "Potencialmente activo",
+    "region": "Cusco"
+   }
+  }
+ ]
+}

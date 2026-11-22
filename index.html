@@ -4,114 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sismos del Perú · Mapa en tiempo casi real (IGP)</title>
-<meta name="description" content="Mapa interactivo de los sismos reportados por el Instituto Geofísico del Perú (IGP), con fallas activas, límites de placas y límites departamentales.">
+<meta name="description" content="Mapa interactivo de los sismos reportados por el Instituto Geofísico del Perú (IGP), con estadísticas, fallas activas, ciudades, carreteras y límites departamentales.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<style>
-:root{
-  --bg:#f6f5f2; --panel:#ffffff; --ink:#1d232b; --muted:#66707c; --line:#e3e1dc;
-  --accent:#b8321f; --accent-soft:#f6e3df; --chip:#eef0f2;
-  --d1:#d7301f; --d2:#fc8d3c; --d3:#f2c12e; --d4:#41ab5d; --d5:#2c7fb8;
-}
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;color:var(--ink);background:var(--bg)}
-#app{display:grid;grid-template-rows:auto 1fr;height:100%}
-header{display:flex;align-items:center;gap:16px;padding:10px 16px;background:#20262e;color:#fff;flex-wrap:wrap}
-header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
-header h1 small{font-weight:400;color:#aeb6bf;font-size:12px;margin-left:6px}
-#latest{margin-left:auto;display:flex;align-items:center;gap:10px;background:#2d353f;border-radius:8px;padding:6px 10px;cursor:pointer;max-width:560px}
-#latest .m{font-weight:700;font-size:18px;min-width:38px;text-align:center;border-radius:6px;padding:2px 6px;color:#fff}
-#latest .t{font-size:12px;color:#d5dbe1;line-height:1.25}
-#latest .t b{color:#fff;font-weight:600}
-#toggle-panel{display:none;background:#38424d;color:#fff;border:0;border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer}
-main{display:grid;grid-template-columns:380px 1fr;min-height:0}
-aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-#map{min-height:0;background:#dfe6ea}
-.filters{padding:12px 14px;border-bottom:1px solid var(--line);display:grid;gap:10px}
-.row{display:flex;gap:8px;align-items:center}
-.row label{font-size:12px;color:var(--muted);min-width:78px}
-select,input[type=search],input[type=date]{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);flex:1;min-width:0}
-.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;flex:1}
-.seg button{flex:1;border:0;background:#fff;padding:5px 4px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink);border-right:1px solid var(--line)}
-.seg button:last-child{border-right:0}
-.seg button.on{background:var(--ink);color:#fff}
-input[type=range]{flex:1;accent-color:var(--accent)}
-#magval{font-variant-numeric:tabular-nums;font-weight:600;min-width:34px;text-align:right}
-#customdates{display:none}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:#fbfaf8}
-.stat .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
-.stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-#hist{padding:6px 14px 8px;border-bottom:1px solid var(--line)}
-#hist svg{display:block;width:100%;height:46px}
-#hist .cap{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
-.listhead{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
-.listhead select{flex:0 0 auto;font-size:12px;padding:3px 6px}
-#list{overflow:auto;flex:1;min-height:0}
-.ev{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:9px 14px;border-bottom:1px solid #f0eeea;cursor:pointer}
-.ev:hover,.ev.sel{background:var(--accent-soft)}
-.ev .mag{font-weight:700;font-size:16px;border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:center;height:34px;font-variant-numeric:tabular-nums}
-.ev .ref{font-weight:560}
-.ev .meta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-#more{margin:10px 14px 16px;padding:7px;border:1px solid var(--line);border-radius:6px;background:#fff;font:inherit;cursor:pointer;width:calc(100% - 28px)}
-.empty{padding:20px 14px;color:var(--muted)}
-footer{font-size:11px;color:var(--muted);padding:8px 14px;border-top:1px solid var(--line);line-height:1.45}
-footer a{color:inherit}
-/* map widgets */
-.legend{background:rgba(255,255,255,.95);padding:8px 10px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.25);font-size:12px;line-height:1.5;min-width:150px}
-.legend h4{margin:0 0 4px;font-size:12px}
-.legend .lg-btn{all:unset;cursor:pointer;font-weight:650;font-size:12px;display:block;width:100%}
-.legend.closed .lg-body{display:none}
-.legend:not(.closed) .lg-btn{margin-bottom:4px}
-.hide-labels .dep-label{display:none}
-.legend .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.35)}
-.legend .ln{display:inline-block;width:18px;height:0;margin-right:6px;vertical-align:3px;border-top:2.5px solid}
-.legend .sizes{display:flex;align-items:flex-end;gap:8px;margin-top:2px}
-.legend .sizes span{display:flex;flex-direction:column;align-items:center;font-size:10.5px;color:var(--muted)}
-.legend .sizes i{display:block;border-radius:50%;border:1px solid #555;background:#ccc}
-.leaflet-popup-content{margin:12px 14px;font-size:13px;min-width:250px}
-.pop h3{margin:0 0 2px;font-size:15px}
-.pop .sub{color:var(--muted);font-size:12px;margin-bottom:8px}
-.pop table{border-collapse:collapse;width:100%}
-.pop td{padding:2px 0;vertical-align:top}
-.pop td:first-child{color:var(--muted);padding-right:10px;white-space:nowrap}
-.pop .links{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap}
-.pop .links a{color:var(--accent);font-weight:560}
-.dep-label{background:transparent;border:0;box-shadow:none;color:#3b3f46;font-weight:600;font-size:10.5px;letter-spacing:.6px;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
-.dep-label:before{display:none}
-.pulse{width:34px;height:34px;border-radius:50%;border:3px solid var(--accent);animation:pulse 1.8s ease-out infinite;pointer-events:none}
-@keyframes pulse{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
-.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#20262e;color:#fff;padding:9px 14px;border-radius:8px;font-size:13px;z-index:2000;box-shadow:0 2px 10px rgba(0,0,0,.3);display:none}
-@media (max-width:820px){
-  main{grid-template-columns:1fr;grid-template-rows:1fr}
-  aside{position:absolute;z-index:1000;top:0;bottom:0;left:0;width:min(380px,92vw);transform:translateX(-102%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.25)}
-  aside.open{transform:none}
-  main{position:relative}
-  #toggle-panel{display:inline-block}
-  #latest{margin-left:0;width:100%;max-width:none;padding:4px 8px}
-  header{gap:8px;padding:8px 10px}
-  header h1{font-size:15px}
-  #updated{display:none}
-  #latest .m{font-size:15px}
-}
-</style>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 <div id="app">
   <header>
-    <button id="toggle-panel" aria-label="Mostrar lista">☰ Lista</button>
+    <button id="toggle-panel" aria-label="Mostrar panel">☰ Panel</button>
     <h1>Sismos del Perú <small id="updated">cargando…</small></h1>
     <div id="latest" title="Ir al último sismo"></div>
   </header>
   <main>
     <aside id="panel">
       <div class="filters">
-        <div class="row"><label>Periodo</label>
-          <div class="seg" id="period">
-            <button data-v="1">24 h</button><button data-v="7">7 d</button><button data-v="30" class="on">30 d</button><button data-v="year">Año</button><button data-v="all">Todo</button><button data-v="custom">…</button>
-          </div>
+        <div class="row"><label for="mode">Fechas</label>
+          <select id="mode">
+            <option value="1">Últimas 24 horas</option>
+            <option value="7">Últimos 7 días</option>
+            <option value="30" selected>Últimos 30 días</option>
+            <option value="365">Últimos 12 meses</option>
+            <option value="dia">Día…</option>
+            <option value="mes">Mes…</option>
+            <option value="anio">Año…</option>
+            <option value="rango">Rango personalizado…</option>
+            <option value="todo">Todo el catálogo</option>
+          </select>
         </div>
-        <div class="row" id="customdates"><label>Rango</label><input type="date" id="d0"><input type="date" id="d1"></div>
-        <div class="row"><label>Magnitud ≥</label><input type="range" id="mag" min="2.5" max="7" step="0.1" value="2.5"><span id="magval">2.5</span></div>
-        <div class="row"><label>Profundidad</label>
+        <div class="row" id="dateinputs" style="display:none"></div>
+        <div id="periodlabel"></div>
+        <div class="row"><label for="mag">Magnitud ≥</label><input type="range" id="mag" min="3" max="7" step="0.1" value="3"><span id="magval">3.0</span></div>
+        <div class="row"><label for="depth">Profundidad</label>
           <select id="depth">
             <option value="all">Todas</option>
             <option value="s">Superficial (≤ 60 km)</option>
@@ -119,331 +42,57 @@ footer a{color:inherit}
             <option value="p">Profunda (&gt; 300 km)</option>
           </select>
         </div>
-        <div class="row"><label>Región</label><select id="region"><option value="">Todas las regiones</option></select></div>
-        <div class="row"><label>Buscar</label><input type="search" id="q" placeholder="Localidad, provincia, código…"></div>
+        <div class="row"><label for="region">Región</label><select id="region"><option value="">Todas las regiones</option></select></div>
+        <div class="row"><label for="loc">Epicentro</label>
+          <select id="loc"><option value="">En tierra y en el mar</option><option value="1">Dentro del territorio</option><option value="0">En el mar o fuera del país</option></select>
+        </div>
+        <div class="row"><label for="q">Buscar</label><input type="search" id="q" placeholder="Localidad, provincia, código…"></div>
         <div class="row"><label>Color</label>
           <div class="seg" id="colorby"><button data-v="depth" class="on">Profundidad</button><button data-v="age">Antigüedad</button></div>
         </div>
       </div>
-      <div class="stats">
-        <div class="stat"><div class="v" id="s-n">–</div><div class="k">Sismos</div></div>
-        <div class="stat"><div class="v" id="s-max">–</div><div class="k">Mag. máx.</div></div>
-        <div class="stat"><div class="v" id="s-m4">–</div><div class="k">M ≥ 4.5</div></div>
+      <div class="tabs"><button data-tab="t-list" class="on">Sismos</button><button data-tab="t-stats">Estadísticas e insights</button></div>
+      <div class="tabpane on" id="t-list">
+        <div class="stats">
+          <div class="stat"><div class="v" id="s-n">–</div><div class="k">Sismos</div></div>
+          <div class="stat"><div class="v" id="s-max">–</div><div class="k">Mag. máx.</div></div>
+          <div class="stat"><div class="v" id="s-m4">–</div><div class="k">M ≥ 4.5</div></div>
+        </div>
+        <div class="listhead"><span id="listcount"></span>
+          <select id="sort"><option value="t">Más recientes</option><option value="m">Mayor magnitud</option><option value="p">Más profundos</option></select>
+        </div>
+        <div id="list"></div>
       </div>
-      <div id="hist"></div>
-      <div class="listhead"><span id="listcount"></span>
-        <select id="sort"><option value="t">Más recientes</option><option value="m">Mayor magnitud</option><option value="p">Más profundos</option></select>
-      </div>
-      <div id="list"></div>
-      <footer>
-        Datos sísmicos: <a href="https://ultimosismo.igp.gob.pe/productos/reportes-sismicos" target="_blank" rel="noopener">IGP – Centro Sismológico Nacional</a> (reportes oficiales, se actualizan cada 30 min).
-        Fallas activas: <a href="https://github.com/GEMScienceTools/gem-global-active-faults" target="_blank" rel="noopener">GEM Global Active Faults</a> (Styron &amp; Pagani, 2020).
-        Placas: Bird (2003), PB2002. Límites departamentales: INEI.
+      <div class="tabpane" id="t-stats"><div id="statsbody"></div></div>
+      <footer><details><summary>Fuentes de datos</summary>
+        Sismos: <a href="https://ultimosismo.igp.gob.pe/productos/reportes-sismicos" target="_blank" rel="noopener">IGP – Centro Sismológico Nacional</a>, reportes sísmicos (actualización automática cada 30 min).
+        Fallas activas: <a href="https://github.com/GEMScienceTools/gem-global-active-faults" target="_blank" rel="noopener">GEM Global Active Faults</a>.
+        Placas: Bird (2003). Ciudades y carreteras: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>. Departamentos: INEI.
         Mapa informativo; para información oficial consulte al IGP.
-      </footer>
+      </details></footer>
     </aside>
     <div id="map"></div>
   </main>
 </div>
 <div class="toast" id="toast"></div>
+<div class="modal" id="exportdlg" role="dialog" aria-modal="true" aria-labelledby="exp-h">
+  <div class="box">
+    <h2 id="exp-h">Exportar imagen PNG del mapa</h2>
+    <div class="fld"><label for="exp-title">Título</label><input type="text" id="exp-title"></div>
+    <div class="fld"><label for="exp-sub">Subtítulo</label><input type="text" id="exp-sub"></div>
+    <label class="chk"><input type="checkbox" id="exp-legend" checked> Incluir leyenda</label>
+    <label class="chk"><input type="checkbox" id="exp-data" checked> Incluir resumen de datos (n.º de sismos, magnitud máxima, filtros)</label>
+    <label class="chk"><input type="checkbox" id="exp-north" checked> Incluir flecha de norte y escala</label>
+    <div class="fld" style="margin-top:8px"><label for="exp-res">Resolución</label>
+      <select id="exp-res"><option value="1">1× (tamaño de pantalla)</option><option value="2" selected>2× (alta)</option><option value="3">3× (impresión)</option></select></div>
+    <div class="btns"><button id="exp-cancel">Cancelar</button><button class="primary" id="exp-go">Descargar PNG</button></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-<script>
-"use strict";
-// ---------- helpers ----------
-const $ = s => document.querySelector(s);
-const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().trim();
-const LIMA_OFFSET = -5 * 3600e3; // Peru: UTC-5, no daylight saving
-const fmt2 = n => String(n).padStart(2,"0");
-function fmtLocal(ms, withSec=true){
-  const d = new Date(ms + LIMA_OFFSET);
-  return `${fmt2(d.getUTCDate())}/${fmt2(d.getUTCMonth()+1)}/${d.getUTCFullYear()} ${fmt2(d.getUTCHours())}:${fmt2(d.getUTCMinutes())}${withSec?":"+fmt2(d.getUTCSeconds()):""}`;
-}
-function fmtUTC(ms){ return new Date(ms).toISOString().replace("T"," ").slice(0,19)+" UTC"; }
-function ago(ms){
-  const s = (Date.now()-ms)/1000;
-  if (s < 3600) return `hace ${Math.max(1,Math.round(s/60))} min`;
-  if (s < 86400) return `hace ${Math.round(s/3600)} h`;
-  const d = Math.round(s/86400); return `hace ${d} día${d>1?"s":""}`;
-}
-function depthClass(p){ return p==null ? "?" : p<=60 ? "s" : p<=300 ? "i" : "p"; }
-const DEPTH_COLORS = [[30,"#d7301f","0–30 km"],[60,"#fc8d3c","31–60 km"],[150,"#f2c12e","61–150 km"],[300,"#41ab5d","151–300 km"],[Infinity,"#2c7fb8","> 300 km"]];
-const AGE_COLORS = [[1,"#c51b7d","Últimas 24 h"],[7,"#f1a340","Última semana"],[30,"#f7e04b","Último mes"],[365,"#9ecae1","Último año"],[Infinity,"#bdbdbd","Más antiguos"]];
-let colorBy = "depth";
-function colorOf(e){
-  if (colorBy==="age"){ const days=(Date.now()-e.t)/864e5; return AGE_COLORS.find(c=>days<=c[0])[1]; }
-  return e.prof==null ? "#999" : DEPTH_COLORS.find(c=>e.prof<=c[0])[1];
-}
-const radiusOf = m => Math.min(34, Math.max(3, Math.pow(1.9, m-1.4)));
-function regionOf(ref){
-  if (/callao/i.test(ref) && !/ - /.test(ref)) return "Callao";
-  const i = ref.lastIndexOf(" - ");
-  return i>=0 ? ref.slice(i+3).trim() : "";
-}
-function toast(msg){ const t=$("#toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast._h); toast._h=setTimeout(()=>t.style.display="none",5000); }
-
-// ---------- map ----------
-const map = L.map("map",{preferCanvas:true, zoomControl:true, worldCopyJump:true}).setView([-9.3,-75.5],5);
-const bases = {
-  "Relieve (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",{maxZoom:18,attribution:"Tiles © Esri"}),
-  "Claro (CARTO)": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{maxZoom:19,attribution:"© OpenStreetMap, © CARTO"}),
-  "OpenStreetMap": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}),
-  "Satélite (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:18,attribution:"Imagery © Esri"}),
-  "Oscuro (CARTO)": L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:19,attribution:"© OpenStreetMap, © CARTO"})
-};
-bases["Claro (CARTO)"].addTo(map);
-map.createPane("deps").style.zIndex = 380;
-map.createPane("faults").style.zIndex = 390;
-map.createPane("quakes").style.zIndex = 420;
-const quakeRenderer = L.canvas({pane:"quakes", padding:.3});
-const quakeLayer = L.layerGroup().addTo(map);
-const heatLayer = L.heatLayer([], {radius:18, blur:16, maxZoom:9, minOpacity:.25});
-const depLayer = L.geoJSON(null,{pane:"deps", style:{color:"#5b6470",weight:1.1,fill:true,fillOpacity:0,dashArray:"4 3"}}).addTo(map);
-const depLabels = L.layerGroup();
-const FAULT_STYLE = {
-  "Subduction_Thrust":["#111", 3, "Subducción (fosa)"],
-  "Reverse":["#c0392b", 1.8, "Inversa"],
-  "Reverse-Dextral":["#c0392b", 1.8, null], "Reverse-Sinistral":["#c0392b", 1.8, null],
-  "Normal":["#1f5fbf", 1.8, "Normal"],
-  "Normal-Dextral":["#1f5fbf",1.8,null],"Normal-Sinistral":["#1f5fbf",1.8,null],
-  "Dextral":["#1a9850", 1.8, "Dextral"], "Dextral-Reverse":["#1a9850",1.8,null], "Dextral-Normal":["#1a9850",1.8,null],
-  "Sinistral":["#8e44ad", 1.8, "Sinistral"], "Sinistral-Reverse":["#8e44ad",1.8,null], "Sinistral-Normal":["#8e44ad",1.8,null]
-};
-const SLIP_ES = {Reverse:"Inversa",Normal:"Normal",Dextral:"Dextral",Sinistral:"Sinistral",Subduction_Thrust:"Cabalgamiento de subducción",Blind_Thrust:"Cabalgamiento ciego",Anticline:"Anticlinal",Syncline:"Sinclinal"};
-const slipEs = t => (t||"No especificado").split("-").map(x=>SLIP_ES[x]||x).join("–");
-const faultLayer = L.geoJSON(null,{pane:"faults",
-  style:f=>{const s=FAULT_STYLE[f.properties.slip_type]||["#7f6a55",1.4]; return {color:s[0],weight:s[1],opacity:.85};},
-  onEachFeature:(f,l)=>{
-    const p=f.properties, nm=p.name ? p.name.replace(/_/g," ") : "Falla sin nombre";
-    l.bindPopup(`<div class="pop"><h3>${nm}</h3><div class="sub">Falla activa</div><table>
-      <tr><td>Cinemática</td><td>${slipEs(p.slip_type)}</td></tr>
-      ${p.net_slip_rate?`<tr><td>Tasa de desliz.</td><td>${p.net_slip_rate} mm/a</td></tr>`:""}
-      ${p.average_dip?`<tr><td>Buzamiento</td><td>${p.average_dip}° ${p.dip_dir||""}</td></tr>`:""}
-      <tr><td>Fuente</td><td>${p.catalog_name||"GEM GAF-DB"}</td></tr></table></div>`);
-    l.on("mouseover",()=>l.setStyle({weight:(FAULT_STYLE[p.slip_type]||[0,1.4])[1]+2}));
-    l.on("mouseout",()=>faultLayer.resetStyle(l));
-  }}).addTo(map);
-const plateLayer = L.geoJSON(null,{pane:"faults",style:{color:"#e8590c",weight:2.2,opacity:.8,dashArray:"8 5"},
-  onEachFeature:(f,l)=>l.bindTooltip(`Límite de placas: ${f.properties.Name||""}`,{sticky:true})});
-
-L.control.layers(bases,{
-  "Sismos":quakeLayer, "Mapa de calor":heatLayer, "Departamentos":depLayer, "Nombres de departamentos":depLabels,
-  "Fallas activas":faultLayer, "Límites de placas":plateLayer
-},{collapsed:window.innerWidth<820}).addTo(map);
-L.control.scale({imperial:false}).addTo(map);
-
-const legend = L.control({position:"bottomright"});
-let legendOpen = window.innerWidth >= 820;
-legend.onAdd = () => { const d=L.DomUtil.create("div","legend"); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
-  d.addEventListener("click",ev=>{ if(ev.target.closest(".lg-btn")){ legendOpen=!legendOpen; drawLegend(); }}); return d; };
-legend.addTo(map);
-function drawLegend(){
-  const src = colorBy==="age" ? AGE_COLORS : DEPTH_COLORS;
-  const el = legend.getContainer();
-  el.classList.toggle("closed", !legendOpen);
-  el.innerHTML = `<button class="lg-btn">Leyenda ${legendOpen?"▾":"▸"}</button><div class="lg-body"><h4>${colorBy==="age"?"Antigüedad":"Profundidad del hipocentro"}</h4>`+
-    src.map(c=>`<div><span class="sw" style="background:${c[1]}"></span>${c[2]}</div>`).join("")+
-    `<h4 style="margin-top:6px">Magnitud</h4><div class="sizes">${[3,4,5,6,7].map(m=>{const r=radiusOf(m);return `<span><i style="width:${2*r}px;height:${2*r}px"></i>${m}</span>`}).join("")}</div>`+
-    (map.hasLayer(faultLayer)?`<h4 style="margin-top:6px">Fallas activas</h4>`+Object.values(FAULT_STYLE).filter(s=>s[2]).map(s=>`<div><span class="ln" style="border-color:${s[0]};border-top-width:${s[1]}px"></span>${s[2]}</div>`).join(""):"")+
-    (map.hasLayer(plateLayer)?`<div style="margin-top:4px"><span class="ln" style="border-color:#e8590c;border-top-style:dashed"></span>Límite de placas</div>`:"")+"</div>";
-}
-map.on("overlayadd overlayremove", drawLegend);
-
-// ---------- data ----------
-let ALL = [], VIEW = [], markers = new Map(), selected = null, latestId = null, shown = 300, pulse = null;
-const state = {period:"30", mag:2.5, depth:"all", region:"", q:"", sort:"t", d0:null, d1:null};
-
-async function getJSON(url){ const r = await fetch(url, {cache:"no-store"}); if(!r.ok) throw new Error(url+" "+r.status); return r.json(); }
-
-async function loadLayers(){
-  const [dep, fal, pla] = await Promise.allSettled([getJSON("data/departamentos.geojson"), getJSON("data/fallas_activas.geojson"), getJSON("data/placas.geojson")]);
-  if (dep.status==="fulfilled"){
-    depLayer.addData(dep.value);
-    depLayer.eachLayer(l=>{
-      const nm = l.feature.properties.NOMBDEP;
-      const pretty = nm;
-      L.tooltip({permanent:true,direction:"center",className:"dep-label",interactive:false}).setLatLng(l.getBounds().getCenter()).setContent(pretty).addTo(depLabels);
-      l.on("click", ev => {
-        const n = VIEW.filter(e => norm(e.region)===nm).length;
-        L.popup().setLatLng(ev.latlng).setContent(`<div class="pop"><h3>${titleCase(nm)}</h3><div class="sub">${n} sismo(s) con referencia en esta región según los filtros actuales</div><a href="#" onclick="setRegion('${nm}');return false">Filtrar por esta región</a></div>`).openOn(map);
-      });
-    });
-    const lblZoom = () => map.getContainer().classList.toggle("hide-labels", map.getZoom() < 6);
-    map.on("zoomend", lblZoom); lblZoom(); depLabels.addTo(map);
-  }
-  if (fal.status==="fulfilled") faultLayer.addData(fal.value);
-  if (pla.status==="fulfilled") plateLayer.addData(pla.value);
-  drawLegend();
-}
-const titleCase = s => s.toLowerCase().replace(/(^|\s)\S/g, c=>c.toUpperCase());
-
-async function loadQuakes(initial){
-  let data;
-  try { data = await getJSON("data/sismos.json?t="+Date.now()); }
-  catch(err){ $("#updated").textContent = "no se pudo cargar el catálogo"; if(initial) $("#list").innerHTML='<div class="empty">Aún no hay datos. El catálogo se descarga automáticamente del IGP cada 30 minutos.</div>'; return; }
-  const F = data.fields, ix = k => F.indexOf(k);
-  const prevIds = new Set(ALL.map(e=>e.id));
-  ALL = data.events.map(r => {
-    const ref = r[ix("ref")]||"";
-    return {id:r[ix("id")], t:Date.parse(r[ix("utc")]), lat:r[ix("lat")], lon:r[ix("lon")], mag:r[ix("mag")], prof:r[ix("prof")],
-            ref, int:r[ix("int")]||"", pdf:r[ix("pdf")]||"", region:regionOf(ref)};
-  }).filter(e => !isNaN(e.t));
-  ALL.sort((a,b)=>b.t-a.t);
-  $("#updated").textContent = `${ALL.length.toLocaleString("es-PE")} sismos · actualizado ${fmtLocal(Date.parse(data.updated),false)} (hora Perú)`;
-  // region options
-  const regs = [...new Set(ALL.map(e=>e.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
-  const sel = $("#region"), cur = sel.value;
-  sel.innerHTML = '<option value="">Todas las regiones</option>' + regs.map(r=>`<option>${r}</option>`).join("");
-  sel.value = cur;
-  if (!initial){
-    const nuevos = ALL.filter(e=>!prevIds.has(e.id));
-    if (nuevos.length) toast(`${nuevos.length} sismo(s) nuevo(s): M${nuevos[0].mag} ${nuevos[0].ref}`);
-  }
-  drawLatest();
-  apply();
-  if (initial){
-    const want = new URLSearchParams(location.search).get("evento");
-    if (want && ALL.find(e=>e.id===want)){ const e=ALL.find(e=>e.id===want); ensureVisible(e); select(e.id,true); }
-  }
-}
-
-function drawLatest(){
-  const e = ALL[0]; if(!e) return;
-  latestId = e.id;
-  $("#latest").innerHTML = `<div class="m" style="background:${DEPTH_COLORS.find(c=>(e.prof??0)<=c[0])[1]}">${e.mag.toFixed(1)}</div>
-    <div class="t"><b>Último sismo: ${e.ref}</b><br>${fmtLocal(e.t)} hora local · ${ago(e.t)} · ${e.prof??"?"} km</div>`;
-  $("#latest").onclick = () => { ensureVisible(e); select(e.id,true); };
-  if (pulse) pulse.remove();
-  pulse = L.marker([e.lat,e.lon],{icon:L.divIcon({className:"",html:'<div class="pulse"></div>',iconSize:[34,34],iconAnchor:[17,17]}),interactive:false,pane:"quakes"}).addTo(map);
-}
-
-function ensureVisible(e){
-  // relax filters if the requested event is hidden by them
-  if (!VIEW.includes(e)){ state.period="all"; state.mag=2.5; state.depth="all"; state.region=""; state.q=""; syncControls(); apply(); }
-}
-
-function passes(e, now){
-  if (state.period==="custom"){
-    if (state.d0 && e.t < Date.parse(state.d0+"T00:00:00-05:00")) return false;
-    if (state.d1 && e.t > Date.parse(state.d1+"T23:59:59-05:00")) return false;
-  } else if (state.period==="year"){
-    if (new Date(e.t+LIMA_OFFSET).getUTCFullYear() !== new Date(now+LIMA_OFFSET).getUTCFullYear()) return false;
-  } else if (state.period!=="all"){
-    if (now - e.t > +state.period*864e5) return false;
-  }
-  if (e.mag < state.mag - 1e-9) return false;
-  if (state.depth!=="all" && depthClass(e.prof)!==state.depth) return false;
-  if (state.region && e.region!==state.region) return false;
-  if (state.q){ const q=norm(state.q); if (!norm(e.ref+" "+e.id+" "+e.int).includes(q)) return false; }
-  return true;
-}
-
-function apply(){
-  const now = Date.now();
-  VIEW = ALL.filter(e=>passes(e,now));
-  quakeLayer.clearLayers(); markers.clear();
-  // draw small first so big events stay on top
-  [...VIEW].sort((a,b)=>a.mag-b.mag).forEach(e=>{
-    const m = L.circleMarker([e.lat,e.lon],{renderer:quakeRenderer, radius:radiusOf(e.mag), color:"#2b2b2b", weight:.7, fillColor:colorOf(e), fillOpacity:.85});
-    m.on("click",()=>select(e.id,false));
-    m.bindTooltip(`M${e.mag.toFixed(1)} · ${e.ref}<br>${fmtLocal(e.t,false)} · ${e.prof??"?"} km`,{direction:"top",offset:[0,-4]});
-    m.addTo(quakeLayer); markers.set(e.id,{m,e});
-  });
-  heatLayer.setLatLngs(VIEW.map(e=>[e.lat,e.lon,Math.min(1,(e.mag-2)/5)]));
-  // stats
-  $("#s-n").textContent = VIEW.length.toLocaleString("es-PE");
-  $("#s-max").textContent = VIEW.length ? Math.max(...VIEW.map(e=>e.mag)).toFixed(1) : "–";
-  $("#s-m4").textContent = VIEW.filter(e=>e.mag>=4.5).length.toLocaleString("es-PE");
-  drawHist(); shown = 300; drawList(); drawLegend();
-  if (selected && !markers.has(selected)) selected = null;
-}
-
-function drawHist(){
-  const bins = []; for (let m=2.5;m<8;m+=0.5) bins.push({m,n:0});
-  VIEW.forEach(e=>{ const i=Math.min(bins.length-1,Math.max(0,Math.floor((e.mag-2.5)/0.5))); bins[i].n++; });
-  const max = Math.max(1,...bins.map(b=>b.n)), W=100/bins.length;
-  $("#hist").innerHTML = `<svg viewBox="0 0 100 40" preserveAspectRatio="none">${bins.map((b,i)=>{const h=b.n?Math.max(1.5,36*Math.sqrt(b.n/max)):0;return `<rect x="${i*W+.4}" y="${38-h}" width="${W-.8}" height="${h}" fill="${b.m>=4.5?'#b8321f':'#9aa4ae'}"><title>M ${b.m.toFixed(1)}–${(b.m+0.4).toFixed(1)}: ${b.n}</title></rect>`}).join("")}</svg>
-    <div class="cap"><span>M 2.5</span><span>Distribución de magnitudes (escala √)</span><span>M 8</span></div>`;
-}
-
-function sortedView(){
-  const v=[...VIEW];
-  if (state.sort==="m") v.sort((a,b)=>b.mag-a.mag||b.t-a.t);
-  else if (state.sort==="p") v.sort((a,b)=>(b.prof??-1)-(a.prof??-1)||b.t-a.t);
-  return v;
-}
-function drawList(){
-  const v = sortedView(), list = $("#list");
-  $("#listcount").textContent = `${VIEW.length.toLocaleString("es-PE")} resultados`;
-  if (!v.length){ list.innerHTML='<div class="empty">Ningún sismo cumple los filtros.</div>'; return; }
-  list.innerHTML = v.slice(0,shown).map(e=>`<div class="ev${e.id===selected?" sel":""}" data-id="${e.id}">
-      <div class="mag" style="background:${colorOf(e)};${colorOf(e)==="#f7e04b"||colorOf(e)==="#f2c12e"?"color:#222":""}">${e.mag.toFixed(1)}</div>
-      <div><div class="ref">${e.ref}</div><div class="meta">${fmtLocal(e.t,false)} · ${ago(e.t)} · ${e.prof??"?"} km${e.int?" · Int. "+e.int:""}</div></div></div>`).join("")
-    + (v.length>shown?`<button id="more">Mostrar más (${(v.length-shown).toLocaleString("es-PE")} restantes)</button>`:"");
-  const more=$("#more"); if(more) more.onclick=()=>{shown+=300;drawList();};
-}
-$("#list").addEventListener("click", ev=>{ const d=ev.target.closest(".ev"); if(d){ select(d.dataset.id,true); if(innerWidth<820) $("#panel").classList.remove("open"); }});
-$("#list").addEventListener("mouseover", ev=>{ const d=ev.target.closest(".ev"); if(!d) return; const k=markers.get(d.dataset.id); if(k){ k.m.setStyle({weight:2.5,color:"#000"}); k.m.bringToFront(); }});
-$("#list").addEventListener("mouseout", ev=>{ const d=ev.target.closest(".ev"); if(!d) return; const k=markers.get(d.dataset.id); if(k) k.m.setStyle({weight:.7,color:"#2b2b2b"}); });
-
-function popupHtml(e){
-  const dc = {s:"Superficial",i:"Intermedia",p:"Profunda","?":"–"}[depthClass(e.prof)];
-  const lat = `${Math.abs(e.lat).toFixed(2)}° ${e.lat<0?"S":"N"}`, lon = `${Math.abs(e.lon).toFixed(2)}° ${e.lon<0?"O":"E"}`;
-  return `<div class="pop"><h3>M ${e.mag.toFixed(1)} · ${e.ref}</h3><div class="sub">Reporte IGP ${e.id} · ${ago(e.t)}</div><table>
-    <tr><td>Hora local</td><td>${fmtLocal(e.t)} (UTC−5)</td></tr>
-    <tr><td>Hora UTC</td><td>${fmtUTC(e.t)}</td></tr>
-    <tr><td>Magnitud</td><td>${e.mag.toFixed(1)}</td></tr>
-    <tr><td>Profundidad</td><td>${e.prof??"–"} km (${dc})</td></tr>
-    <tr><td>Epicentro</td><td>${lat}, ${lon}</td></tr>
-    <tr><td>Intensidad</td><td>${e.int||"–"}</td></tr>
-    <tr><td>Región ref.</td><td>${e.region||"–"}</td></tr></table>
-    <div class="links">${e.pdf?`<a href="${e.pdf}" target="_blank" rel="noopener">Reporte acelerométrico (PDF)</a>`:""}
-    <a href="https://ultimosismo.igp.gob.pe/productos/reportes-sismicos" target="_blank" rel="noopener">IGP</a>
-    <a href="#" onclick="copyLink('${e.id}');return false">Copiar enlace</a></div></div>`;
-}
-function select(id, fly){
-  const k = markers.get(id); if(!k) return;
-  selected = id;
-  document.querySelectorAll(".ev.sel").forEach(d=>d.classList.remove("sel"));
-  const row = document.querySelector(`.ev[data-id="${CSS.escape(id)}"]`); if(row){ row.classList.add("sel"); row.scrollIntoView({block:"nearest"}); }
-  const go = () => L.popup({maxWidth:330}).setLatLng([k.e.lat,k.e.lon]).setContent(popupHtml(k.e)).openOn(map);
-  if (fly){ map.flyTo([k.e.lat,k.e.lon], Math.max(map.getZoom(),7), {duration:.8}); map.once("moveend",go); } else go();
-  history.replaceState(null,"",`?evento=${encodeURIComponent(id)}`);
-}
-window.copyLink = id => { const u=`${location.origin}${location.pathname}?evento=${encodeURIComponent(id)}`; navigator.clipboard?.writeText(u).then(()=>toast("Enlace copiado"),()=>prompt("Enlace:",u)); };
-window.setRegion = nm => { const opt=[...$("#region").options].find(o=>norm(o.value)===nm); state.region=opt?opt.value:""; syncControls(); apply(); map.closePopup(); };
-map.on("popupclose",()=>{ if(location.search) history.replaceState(null,"",location.pathname); });
-
-// ---------- controls ----------
-function syncControls(){
-  document.querySelectorAll("#period button").forEach(b=>b.classList.toggle("on",b.dataset.v===state.period));
-  $("#customdates").style.display = state.period==="custom" ? "flex" : "none";
-  $("#mag").value=state.mag; $("#magval").textContent=(+state.mag).toFixed(1);
-  $("#depth").value=state.depth; $("#region").value=state.region; $("#q").value=state.q; $("#sort").value=state.sort;
-}
-$("#period").addEventListener("click",ev=>{ const b=ev.target.closest("button"); if(!b) return; state.period=b.dataset.v;
-  if (state.period==="custom" && !state.d0){ const t=new Date(Date.now()+LIMA_OFFSET); state.d1=t.toISOString().slice(0,10); t.setUTCDate(t.getUTCDate()-90); state.d0=t.toISOString().slice(0,10); $("#d0").value=state.d0; $("#d1").value=state.d1; }
-  syncControls(); apply(); });
-$("#d0").onchange=e=>{state.d0=e.target.value||null;apply();};
-$("#d1").onchange=e=>{state.d1=e.target.value||null;apply();};
-$("#mag").oninput=e=>{ $("#magval").textContent=(+e.target.value).toFixed(1); };
-$("#mag").onchange=e=>{ state.mag=+e.target.value; apply(); };
-$("#depth").onchange=e=>{state.depth=e.target.value;apply();};
-$("#region").onchange=e=>{ state.region=e.target.value; apply();
-  const nm=norm(state.region); let b=null; depLayer.eachLayer(l=>{ if(l.feature.properties.NOMBDEP===nm) b=l.getBounds(); });
-  if (b) map.flyToBounds(b,{padding:[30,30],duration:.8}); };
-let qT; $("#q").oninput=e=>{ clearTimeout(qT); qT=setTimeout(()=>{state.q=e.target.value;apply();},200); };
-$("#sort").onchange=e=>{state.sort=e.target.value;shown=300;drawList();};
-$("#colorby").addEventListener("click",ev=>{ const b=ev.target.closest("button"); if(!b) return; colorBy=b.dataset.v;
-  document.querySelectorAll("#colorby button").forEach(x=>x.classList.toggle("on",x===b)); apply(); });
-$("#toggle-panel").onclick=()=>$("#panel").classList.toggle("open");
-
-// ---------- start ----------
-loadLayers();
-loadQuakes(true);
-setInterval(()=>loadQuakes(false), 5*60e3);       // check for new data every 5 min
-setInterval(()=>{ if(ALL.length) drawLatest(); }, 60e3); // refresh "hace X min"
-</script>
+<script src="js/app.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/export.js"></script>
 </body>
 </html>

@@ -38,6 +38,7 @@ const AGE_COLORS = [[1,"#c51b7d","Últimas 24 h"],[7,"#f1a340","Última semana"]
 APP.colorBy = "depth";
 const depthColor = p => p == null ? "#999" : DEPTH_COLORS.find(c => p <= c[0])[1];
 function colorOf(e){
+  if (APP.colorBy === "tect" && e.slab && APP.SLAB_CLASSES) return APP.SLAB_CLASSES[e.slab.cls].color;
   if (APP.colorBy === "age"){ const days = (Date.now() - e.t) / DAY; return AGE_COLORS.find(c => days <= c[0])[1]; }
   return depthColor(e.prof);
 }
@@ -159,6 +160,9 @@ function declutter(){
   });
 }
 APP.declutter = declutter;
+// floating windows are sized from the current map height (it shrinks while the cross-section is open)
+const setMapH = () => document.documentElement.style.setProperty("--maph", map.getSize().y + "px");
+map.on("resize", setMapH); setMapH();
 map.on("zoomend", labelZoom); map.on("moveend layeradd layerremove", () => requestAnimationFrame(declutter)); labelZoom();
 
 // ---------------------------------------------------------------- floating windows
@@ -227,15 +231,19 @@ function drawLayersWin(){
   };
 }
 drawLayersWin();
+APP.drawLayersWin = drawLayersWin;
 
 // legend model is shared with the PNG export
 APP.legendModel = function(){
-  const S = [];
+  const S = [], extra = [].concat(...(APP.legendExtras || []).map(f => f() || []));
   if (map.hasLayer(L_.quakes)){
-    const src = APP.colorBy === "age" ? AGE_COLORS : DEPTH_COLORS;
-    S.push({title: APP.colorBy === "age" ? "Antigüedad del sismo" : "Profundidad del hipocentro", items: src.map(c => ({type:"dot", color:c[1], label:c[2]}))});
+    const rep = extra.find(x => x.replaceDepth);
+    if (rep) S.push(rep);
+    else { const src = APP.colorBy === "age" ? AGE_COLORS : DEPTH_COLORS;
+      S.push({title: APP.colorBy === "age" ? "Antigüedad del sismo" : "Profundidad del hipocentro", items: src.map(c => ({type:"dot", color:c[1], label:c[2]}))}); }
     S.push({title:"Magnitud", sizes:[3,4,5,6,7]});
   }
+  extra.filter(x => !x.replaceDepth).forEach(x => S.push(x));
   if (map.hasLayer(L_.faults)) S.push({title:"Fallas activas", items:Object.keys(FAULT_STYLE).map(k => { const s = faultStyleOf(k); return {type:"line", color:s[0], width:s[1], label:s[2]}; })});
   const other = [];
   if (map.hasLayer(L_.volcanoes)) S.push({title:"Volcanes · peligrosidad (IGP, 2022)", items:[
@@ -263,7 +271,7 @@ APP.drawLegend = drawLegend;
 map.on("overlayadd overlayremove", drawLegend);
 
 // ---------------------------------------------------------------- state & period
-const state = APP.state = {mode:"30", dia:null, mes:null, anio:null, d0:null, d1:null, mag:4.5, depth:"all", region:"", loc:"", q:"", sort:"t"};
+const state = APP.state = {mode:"30", dia:null, mes:null, anio:null, d0:null, d1:null, mag:4.5, depth:"all", region:"", loc:"", tect:"", q:"", sort:"t"};
 APP.ALL = []; APP.VIEW = [];
 let markers = new Map(), selected = null, shown = 300, pulse = null;
 
@@ -455,6 +463,7 @@ function passes(e, b){
   if (state.depth !== "all" && depthClass(e.prof) !== state.depth) return false;
   if (state.region && e.reg !== state.region) return false;
   if (state.loc !== "" && String(e.tierra) !== state.loc) return false;
+  if (state.tect && (!e.slab || e.slab.cls !== state.tect)) return false;
   if (state.q){ const q = norm(state.q); if (!norm(e.ref + " " + e.id + " " + e.int + " " + e.reg).includes(q)) return false; }
   return true;
 }
@@ -489,6 +498,7 @@ APP.filterText = function(){
   if (state.depth !== "all") parts.push({s:"superficiales (≤ 60 km)", i:"intermedios (61–300 km)", p:"profundos (> 300 km)"}[state.depth]);
   if (state.region) parts.push(`región ${state.region}`);
   if (state.loc === "1") parts.push("epicentro en tierra"); if (state.loc === "0") parts.push("epicentro en el mar o fuera del país");
+  if (state.tect && APP.SLAB_CLASSES) parts.push(`ambiente: ${APP.SLAB_CLASSES[state.tect].short.toLowerCase()}`);
   if (state.q) parts.push(`búsqueda "${state.q}"`);
   return parts.join(" · ");
 };
@@ -532,7 +542,8 @@ function popupHtml(e){
     <tr><td>Profundidad</td><td>${e.prof ?? "–"} km (${dc})</td></tr>
     <tr><td>Epicentro</td><td>${lat}, ${lon}</td></tr>
     <tr><td>Región</td><td>${esc(e.reg || "–")}${e.tierra === 0 ? " (en el mar o fuera del país)" : ""}</td></tr>
-    <tr><td>Intensidad</td><td>${esc(e.int || "–")}</td></tr></table>
+    <tr><td>Intensidad</td><td>${esc(e.int || "–")}</td></tr>
+    ${e.slab ? `<tr><td>Ambiente (Slab2)</td><td>${esc(APP.slab.text(e))}</td></tr>` : ""}</table>
     <div class="links">${e.pdf ? `<a href="${esc(e.pdf)}" target="_blank" rel="noopener">Reporte acelerométrico (PDF)</a>` : ""}
     <a href="https://ultimosismo.igp.gob.pe/productos/reportes-sismicos" target="_blank" rel="noopener">IGP</a>
     <a href="#" data-copy="${esc(e.id)}">Copiar enlace</a></div></div>`;
@@ -560,7 +571,7 @@ map.on("popupclose", () => { if (location.search) history.replaceState(null, "",
 function syncControls(){
   $("#mode").value = state.mode;
   $("#mag").value = state.mag; $("#magval").textContent = (+state.mag).toFixed(1);
-  $("#depth").value = state.depth; $("#region").value = state.region; $("#loc").value = state.loc;
+  $("#depth").value = state.depth; $("#region").value = state.region; $("#loc").value = state.loc; $("#tect").value = state.tect;
   $("#q").value = state.q; $("#sort").value = state.sort;
 }
 APP.syncControls = syncControls;
@@ -568,6 +579,7 @@ $("#mag").oninput = e => { $("#magval").textContent = (+e.target.value).toFixed(
 $("#mag").onchange = e => { state.mag = +e.target.value; apply(); };
 $("#depth").onchange = e => { state.depth = e.target.value; apply(); };
 $("#loc").onchange = e => { state.loc = e.target.value; apply(); };
+$("#tect").onchange = e => { state.tect = e.target.value; apply(); };
 $("#region").onchange = e => {
   state.region = e.target.value; apply();
   let bb = null; L_.deps.eachLayer(l => { if ((DEP_NAMES[l.feature.properties.NOMBDEP] || "") === state.region) bb = l.getBounds(); });
@@ -608,6 +620,7 @@ function applyTheme(t){
     drawLayersWin(); drawLegend();
     if (APP.drawStats){ APP.statsDirty = true; APP.maybeDrawStats(); }
     if (APP.redrawProfile) APP.redrawProfile();
+    (APP.onThemeChange || []).forEach(f => f());
   }
   APP.themeReady = true;
 }

@@ -148,7 +148,7 @@ function chartSection(V){
   const fx = key === "lon" ? v => `${Math.abs(v)}°O` : v => `${Math.abs(v)}°${v < 0 ? "S" : "N"}`;
   let body = axes(f, niceTicks(lo, hi, 6), niceTicks(0, dmax, 5), fx, v => v, key === "lon" ? "Longitud" : "Latitud", "Profundidad (km)");
   [...V].sort((a, c) => a.mag - c.mag).forEach(e => body += `<circle class="pt" data-id="${esc(e.id)}" cx="${f.X(e[key]).toFixed(1)}" cy="${f.Y(e.prof || 0).toFixed(1)}" r="${Math.max(1.4, (e.mag - 2) * 1.2)}" fill="${depthColor(e.prof)}" fill-opacity=".7" stroke="#333" stroke-width=".3"><title>M${e.mag} · ${e.prof} km · ${esc(e.ref)}</title></circle>`);
-  const tog = `<div class="seg" id="secaxis" style="max-width:220px;margin:4px 0"><button data-v="lon" class="${key === "lon" ? "on" : ""}">vs longitud (O–E)</button><button data-v="lat" class="${key === "lat" ? "on" : ""}">vs latitud (S–N)</button></div>`;
+  const tog = `<div class="seg" id="secaxis" style="max-width:320px;margin:4px 0"><button data-v="lon" class="${key === "lon" ? "on" : ""}">vs longitud (O–E)</button><button data-v="lat" class="${key === "lat" ? "on" : ""}">vs latitud (S–N)</button></div>`;
   return chart("Sección de profundidad", "Proyección de los hipocentros; en el Perú muestra la geometría de la placa de Nazca que subduce bajo Sudamérica.", svg(h, body), tog);
 }
 function chartDepthHist(V){
@@ -160,6 +160,19 @@ function chartDepthHist(V){
   let body = axes(f, niceTicks(0, dmax, 6), niceTicks(0, ymax, 4), v => v, v => nf(v), "Profundidad (km)", "Sismos");
   bins.forEach(b => { if (b.n) body += `<rect x="${f.X(b.d) + .5}" y="${f.Y(b.n)}" width="${f.X(step) - f.X(0) - 1}" height="${f.Y(0) - f.Y(b.n)}" fill="${depthColor(b.d + step / 2)}"><title>${b.d}–${b.d + step} km: ${b.n}</title></rect>`; });
   return chart("Distribución de profundidades", "Intervalos de 25 km, coloreados con la misma escala del mapa.", svg(h, body));
+}
+function chartTect(V){
+  if (!V.length || !A.slab || !A.slab.ready) return "";
+  const c = new Map(); V.forEach(e => { if (e.slab) c.set(e.slab.cls, (c.get(e.slab.cls) || 0) + 1); });
+  const rows = A.SLAB_ORDER.filter(k => c.get(k)).map(k => [k, c.get(k)]); if (!rows.length) return "";
+  const amb = V.filter(e => e.slab && e.slab.alt).length;
+  const rh = 18, h = rows.length * rh + 8, max = Math.max(...rows.map(r => r[1])), lw = 112, bwMax = W - lw - 52;
+  let body = "";
+  rows.forEach(([k, n], i) => {
+    const y = 4 + i * rh, w = Math.max(1, n / max * bwMax), C = A.SLAB_CLASSES[k];
+    body += `<g class="bar-reg" data-tect="${k}"><text x="${lw - 4}" y="${y + 12}" text-anchor="end">${esc(C.short)}</text><rect x="${lw}" y="${y + 3}" width="${w}" height="${rh - 6}" fill="${C.color}"/><text x="${lw + w + 4}" y="${y + 12}">${nf(n)} (${(100 * n / V.length).toFixed(0)}%)</text><title>${esc(C.name)}: ${esc(C.desc)} Clic para filtrar.</title></g>`;
+  });
+  return chart("Ambiente tectónico según Slab2", `Posición del hipocentro respecto de la placa de Nazca (Hayes et al., 2018). ${nf(amb)} sismo(s) quedan en el límite entre dos clases (±10 km de profundidad). Clic en una barra para filtrar.`, svg(h, body));
 }
 function chartRegions(V){
   if (!V.length) return "";
@@ -192,6 +205,11 @@ function insights(V, b, bv){
   if (!A.state.region && r1) out.push(`Región con más sismos: <b>${esc(r1)}</b> (${nf(n1)}, ${(100 * n1 / V.length).toFixed(0)}% del total).`);
   const ds = {s:0, i:0, p:0}; V.forEach(e => { const c = A.depthClass(e.prof); if (ds[c] != null) ds[c]++; });
   out.push(`Por profundidad: ${(100 * ds.s / V.length).toFixed(0)}% superficiales (≤ 60 km), ${(100 * ds.i / V.length).toFixed(0)}% intermedios y ${(100 * ds.p / V.length).toFixed(0)}% profundos (> 300 km); mediana ${nf(median(V.map(e => e.prof || 0)))} km.`);
+  if (A.slab && A.slab.ready && V.some(e => e.slab)){
+    const n = k => V.filter(e => e.slab && e.slab.cls === k).length, pc = k => (100 * n(k) / V.length).toFixed(0);
+    const amb = V.filter(e => e.slab && e.slab.alt).length;
+    out.push(`Según su posición respecto de la placa de Nazca (Slab2): ${pc("intraplaca")}% intraplaca de profundidad intermedia, ${pc("interfase")}% de interfase, ${pc("cortical")}% corticales y ${pc("profundo")}% profundos; ${nf(amb)} quedan en el límite entre dos clases. Es una clasificación geométrica, no un análisis de mecanismo focal.`);
+  }
   const tierra = V.filter(e => e.tierra === 1).length;
   if (V.some(e => e.tierra != null)) out.push(`${(100 * tierra / V.length).toFixed(0)}% de los epicentros está dentro del territorio; el resto, en el mar o en países vecinos.`);
   if (span > 2){
@@ -240,7 +258,7 @@ function draw(){
   ] : [];
   box.innerHTML = `<div class="kpis">${kpis.map(([v, k]) => `<div class="kpi"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("")}</div>`
     + `<div class="insights"><h3>Insights · ${esc(b.label)}${A.filterText() ? " · " + esc(A.filterText()) : ""}</h3><ul>${insights(V, b, bv).map(s => `<li>${s}</li>`).join("")}</ul></div>`
-    + chartTimeline(V, b) + chartMagTime(V, b) + chartGR(V, bv) + chartSection(V) + chartDepthHist(V) + chartRegions(V)
+    + chartTimeline(V, b) + chartMagTime(V, b) + chartGR(V, bv) + chartTect(V) + chartSection(V) + chartDepthHist(V) + chartRegions(V)
     + `<p class="note">Estadísticas calculadas en su navegador a partir de los sismos que cumplen los filtros. Los reportes del IGP no son un catálogo completo para magnitudes bajas.</p>`;
 }
 A.drawStats = draw;
@@ -250,7 +268,8 @@ A.maybeDrawStats = function(){
   A.statsDirty = false; draw();
 };
 document.getElementById("statsbody").addEventListener("click", ev => {
-  const pt = ev.target.closest("[data-id]"), g = ev.target.closest("[data-goto]"), r = ev.target.closest("[data-reg]"), s = ev.target.closest("#secaxis button");
+  const pt = ev.target.closest("[data-id]"), g = ev.target.closest("[data-goto]"), r = ev.target.closest("[data-reg]"), s = ev.target.closest("#secaxis button"), tc = ev.target.closest("[data-tect]");
+  if (tc){ A.state.tect = tc.dataset.tect; A.syncControls(); A.apply(); return; }
   if (pt) A.select(pt.dataset.id);
   else if (g){ ev.preventDefault(); A.select(g.dataset.goto); }
   else if (r && r.dataset.reg !== "Sin región"){ A.state.region = r.dataset.reg; A.syncControls(); A.apply(); }

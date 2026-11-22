@@ -9,18 +9,16 @@ try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dar
 <title>Sismos del Perú · Mapa en tiempo casi real (IGP)</title>
 <meta name="description" content="Mapa interactivo de los sismos reportados por el Instituto Geofísico del Perú (IGP), con estadísticas, fallas activas, ciudades, carreteras y límites departamentales.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<link rel="stylesheet" href="css/app.css?v=20261123c">
+<link rel="stylesheet" href="css/app.css?v=20261123e">
 </head>
 <body>
 <div id="app">
-  <header>
-    <button id="toggle-panel" aria-label="Mostrar panel">☰ Panel</button>
-    <h1>Sismos del Perú <small id="updated">cargando…</small></h1>
-    <div id="latest" title="Ir al último sismo"></div>
-    <button id="theme" class="theme-btn" aria-label="Cambiar a modo oscuro">☾</button>
-  </header>
   <main>
     <aside id="panel">
+      <div class="brand">
+        <div><h1>Sismos del Perú</h1><div id="updated">cargando…</div></div>
+        <button id="theme" class="theme-btn" aria-label="Cambiar a modo oscuro">☾</button>
+      </div>
       <div class="filters">
         <div class="row"><label for="mode">Fechas</label>
           <select id="mode">
@@ -50,9 +48,21 @@ try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dar
         <div class="row"><label for="loc">Epicentro</label>
           <select id="loc"><option value="">En tierra y en el mar</option><option value="1">Dentro del territorio</option><option value="0">En el mar o fuera del país</option></select>
         </div>
+        <div class="row"><label for="tect" title="Clasificación según la posición del hipocentro respecto de la placa de Nazca (modelo Slab2)">Ambiente</label>
+          <select id="tect">
+            <option value="">Todos los ambientes</option>
+            <option value="cortical">Cortical (placa Sudamericana)</option>
+            <option value="interfase">Interfase (contacto entre placas)</option>
+            <option value="intraplaca">Intraplaca, profundidad intermedia</option>
+            <option value="profundo">Intraplaca profundo (&gt; 300 km)</option>
+            <option value="sobre">Sobre la placa modelada</option>
+            <option value="bajo">Bajo la placa modelada</option>
+            <option value="fuera">Fuera del modelo Slab2</option>
+          </select>
+        </div>
         <div class="row"><label for="q">Buscar</label><input type="search" id="q" placeholder="Localidad, provincia, código…"></div>
         <div class="row"><label>Color</label>
-          <div class="seg" id="colorby"><button data-v="depth" class="on">Profundidad</button><button data-v="age">Antigüedad</button></div>
+          <div class="seg" id="colorby"><button data-v="depth" class="on">Profundidad</button><button data-v="age">Antigüedad</button><button data-v="tect" title="Ambiente tectónico según Slab2">Ambiente</button></div>
         </div>
       </div>
       <div class="tabs"><button data-tab="t-list" class="on">Sismos</button><button data-tab="t-stats">Estadísticas e insights</button></div>
@@ -72,11 +82,16 @@ try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dar
         Sismos: <a href="https://ultimosismo.igp.gob.pe/productos/reportes-sismicos" target="_blank" rel="noopener">IGP – Centro Sismológico Nacional</a>, reportes sísmicos (actualización automática cada 30 min).
         Fallas activas: <a href="https://github.com/GEMScienceTools/gem-global-active-faults" target="_blank" rel="noopener">GEM Global Active Faults</a>.
         Volcanes: nivel de peligrosidad del <a href="https://www.igp.gob.pe/servicios/centro-vulcanologico-nacional/" target="_blank" rel="noopener">IGP</a> (Informe Técnico N.° 029-2022) y ubicación del <a href="https://volcano.si.edu/" target="_blank" rel="noopener">Smithsonian GVP</a>.
+        Geometría de la placa de Nazca: <a href="https://doi.org/10.5066/F7PV6JNV" target="_blank" rel="noopener">Slab2</a> (Hayes et al., 2018, <i>Science</i>).
         Placas: Bird (2003). Ciudades y carreteras: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>. Departamentos: INEI.
         Mapa informativo; para información oficial consulte al IGP.
       </details></footer>
     </aside>
-    <div id="map"></div>
+    <div id="mapwrap">
+      <div id="map"></div>
+      <button id="toggle-panel" aria-label="Mostrar panel de filtros">☰</button>
+      <div id="latest" title="Ir al último sismo" role="button" tabindex="0"></div>
+    </div>
   </main>
 </div>
 <div class="toast" id="toast"></div>
@@ -96,9 +111,10 @@ try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dar
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-<script src="js/app.js?v=20261123c"></script>
-<script src="js/stats.js?v=20261123c"></script>
-<script src="js/export.js?v=20261123c"></script>
-<script src="js/profile.js?v=20261123c"></script>
+<script src="js/app.js?v=20261123e"></script>
+<script src="js/stats.js?v=20261123e"></script>
+<script src="js/export.js?v=20261123e"></script>
+<script src="js/profile.js?v=20261123e"></script>
+<script src="js/slab.js?v=20261123e"></script>
 </body>
 </html>

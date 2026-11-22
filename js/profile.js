@@ -128,17 +128,17 @@ const panel = document.createElement("div");
 panel.id = "profile"; panel.className = "prof hidden";
 panel.innerHTML = `
   <div class="prof-h">
-    <div class="prof-title"><b>Perfil A–A′</b> <span id="pf-info"></span></div>
+    <div class="prof-title"><div><b>Perfil A–A′</b> <span id="pf-info"></span></div>
+      <div class="prof-wbtn"><button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button><button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button></div></div>
     <div class="prof-ctrls">
       <label title="Ancho total de la franja">Ancho <input type="range" id="pf-width" min="0" max="100"><span id="pf-wval"></span></label>
       <label>M ≥ <select id="pf-mag"><option>4.5</option><option>5.0</option><option>5.5</option><option>6.0</option><option>6.5</option></select></label>
       <label title="Exageración vertical de la sección de profundidad">Exag. vert. <select id="pf-ve"><option value="auto">Auto</option><option value="1">1:1</option><option value="2">2:1</option><option value="5">5:1</option><option value="10">10:1</option></select></label>
-      <label>Color <select id="pf-color"><option value="depth">Profundidad</option><option value="year">Año</option></select></label>
+      <label>Color <select id="pf-color"><option value="depth">Profundidad</option><option value="tect">Ambiente (Slab2)</option><option value="year">Año</option></select></label>
+      <label title="Techo y base de la placa de Nazca según Slab2"><input type="checkbox" id="pf-slab" checked> Placa (Slab2)</label>
       <label title="Mostrar en el mapa solo los sismos del perfil y del intervalo de tiempo"><input type="checkbox" id="pf-sync" checked> Sincronizar mapa</label>
       <button id="pf-png" title="Descargar el perfil como imagen">⤓ PNG</button>
       <button id="pf-csv" title="Descargar los sismos de la franja (CSV)">⤓ CSV</button>
-      <button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button>
-      <button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button>
     </div>
   </div>
   <div class="prof-body">
@@ -158,36 +158,36 @@ panel.innerHTML = `
       <div class="pf-dates"><span id="pf-d0"></span><span id="pf-d1"></span></div>
     </div>
   </div>`;
-map.getContainer().parentElement.appendChild(panel);
+document.getElementById("mapwrap").appendChild(panel);           // below the map, inside the map column
 ["click","dblclick","mousedown","wheel","touchstart"].forEach(t => panel.addEventListener(t, e => e.stopPropagation()));
 const cv = $("#pf-canvas"), tip = $("#pf-tip"), hcv = $("#pf-hist");
 
 function openProfile(a, b, width){
   P.A = a; P.B = b; if (width) P.width = width;
-  P.open = true; panel.classList.remove("hidden", "min");
+  P.open = true; panel.classList.remove("hidden", "min"); map.invalidateSize();
   ov.addTo(map); mA.addTo(map); mB.addTo(map);
   if (P.t0 == null){ P.t0 = catStart(); P.t1 = Date.now(); }
   $("#pf-width").value = w2s(P.width);
   drawOverlay(); recompute(true); syncUrl();
   if (width){                                     // opened from a shared link: frame the swath above the panel
-    const ph = panel.getBoundingClientRect().height, mh = map.getContainer().getBoundingClientRect().height;
-    map.fitBounds(swathLayer.getBounds(), {paddingTopLeft:[30, 30], paddingBottomRight:[30, Math.min(ph + 20, mh * .5)], maxZoom:8});
+    map.fitBounds(swathLayer.getBounds(), {padding:[30, 30], maxZoom:8});
   }
 }
 A.openProfile = openProfile;
 function closePanel(keepLine){
   if (P.playing) togglePlay(false);
-  P.open = false; panel.classList.add("hidden");
+  P.open = false; panel.classList.add("hidden"); map.invalidateSize();
   ov.remove(); mA.remove(); mB.remove();
   setSync(false); syncUrl(true);
 }
 $("#pf-close").onclick = () => closePanel(false);
-$("#pf-min").onclick = () => { panel.classList.toggle("min"); $("#pf-min").textContent = panel.classList.contains("min") ? "▢" : "–"; setTimeout(draw, 50); };
+$("#pf-min").onclick = () => { panel.classList.toggle("min"); $("#pf-min").textContent = panel.classList.contains("min") ? "▢" : "–"; map.invalidateSize(); setTimeout(draw, 50); };
 $("#pf-width").oninput = e => { P.width = s2w(+e.target.value); $("#pf-wval").textContent = `${nf(P.width)} km`; drawOverlay(); recompute(false); draw(); };
 $("#pf-width").onchange = () => { recompute(true); syncUrl(); };
 $("#pf-mag").onchange = e => { P.magMin = +e.target.value; recompute(false); };
 $("#pf-ve").onchange = e => { P.ve = e.target.value; draw(); };
-$("#pf-color").onchange = e => { P.color = e.target.value; draw(); };
+$("#pf-color").onchange = e => { P.color = e.target.value; draw(); scheduleMapSync(); };
+$("#pf-slab").onchange = e => { P.showSlab = e.target.checked; draw(); };
 $("#pf-sync").onchange = e => { P.sync = e.target.checked; setSync(P.sync); };
 $("#pf-mode").onchange = e => { P.mode = e.target.value; if (P.mode !== "acum") P.win = +P.mode; updateTime(); };
 $("#pf-speed").onchange = e => { P.speed = +e.target.value; };
@@ -245,6 +245,7 @@ function recompute(withTopo){
     if (q.at >= 0 && q.at <= P.L && Math.abs(q.xt) <= Math.max(half2, 30)) P.volcs.push({at:q.at, xt:q.xt, p:m.options.volc});
   });
   $("#pf-wval").textContent = `${nf(P.width)} km`;
+  sampleSlab();
   drawHist(); updateTime(true);
   if (withTopo) loadTopo();
 }
@@ -349,7 +350,17 @@ function mapSync(){
 
 // ------------------------------------------------------------ colours
 const YEAR_COLS = ["#440154","#46327e","#365c8d","#277f8e","#1fa187","#4ac16d","#a0da39","#fde725"];
+// slab top / bottom / uncertainty sampled along the section
+P.showSlab = true;
+function sampleSlab(){
+  P.slabProf = null;
+  if (!A.slab || !A.slab.ready) return;
+  const n = 300, pts = [];
+  for (let i = 0; i < n; i++){ const q = along(P.A, P.B, i / (n - 1)), s = A.slab.at(q.lat, q.lon); pts.push({at:i / (n - 1) * P.L, ...s}); }
+  P.slabProf = pts.some(p => !isNaN(p.top)) ? pts : null;
+}
 function colorOf(e){
+  if (P.color === "tect" && e.slab && A.SLAB_CLASSES) return A.SLAB_CLASSES[e.slab.cls].color;
   if (P.color === "year"){ const y0 = A.limaParts(catStart()).y, y1 = A.limaParts(Date.now()).y, y = A.limaParts(e.t).y;
     const f = y1 === y0 ? 1 : (y - y0) / (y1 - y0); return YEAR_COLS[Math.round(f * (YEAR_COLS.length - 1))]; }
   return A.depthColor(e.prof);
@@ -376,7 +387,8 @@ function draw(target){
   g.fillStyle = T.bg; g.fillRect(0, 0, W, H);
   const X = km => m.l + km / P.L * plotW;
   // depth scale
-  const maxDepthData = Math.max(50, ...P.ev.map(x => x.e.prof || 0));
+  const slabMax = P.showSlab && P.slabProf ? Math.max(0, ...P.slabProf.filter(p => !isNaN(p.top)).map(p => p.top)) : 0;
+  const maxDepthData = Math.max(50, slabMax * 1.05, ...P.ev.map(x => x.e.prof || 0));
   let dmax, veEff;
   if (P.ve === "auto"){ const st = niceStep(maxDepthData, 5); dmax = Math.ceil(maxDepthData * 1.05 / st) * st; veEff = (plotH / dmax) / (plotW / P.L); }
   else { veEff = +P.ve; dmax = plotH / (plotW / P.L) / veEff; }
@@ -420,6 +432,22 @@ function draw(target){
   g.font = `700 13px ${F}`; g.fillStyle = T.ink; g.textBaseline = "bottom";
   g.textAlign = "left"; g.fillText("A", m.l, m.t - 2); g.textAlign = "right"; g.fillText("A′", m.l + plotW, m.t - 2);
 
+  // Slab2: uncertainty band around the slab top, slab top (solid) and bottom (dashed)
+  if (P.showSlab && P.slabProf){
+    const sp = P.slabProf, col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
+    g.save(); g.beginPath(); g.rect(m.l, y0, plotW, plotH); g.clip();
+    const runs = []; let cur = [];
+    sp.forEach(p => { if (isNaN(p.top)){ if (cur.length) runs.push(cur); cur = []; } else cur.push(p); }); if (cur.length) runs.push(cur);
+    runs.forEach(r => {
+      g.beginPath(); r.forEach((p, i) => { const y = Y(Math.max(0, p.top - (p.unc || 0))); i ? g.lineTo(X(p.at), y) : g.moveTo(X(p.at), y); });
+      [...r].reverse().forEach(p => g.lineTo(X(p.at), Y(p.top + (p.unc || 0))));
+      g.closePath(); g.fillStyle = A.theme === "dark" ? "rgba(201,167,255,.16)" : "rgba(106,61,154,.12)"; g.fill();
+      g.beginPath(); r.forEach((p, i) => i ? g.lineTo(X(p.at), Y(p.top)) : g.moveTo(X(p.at), Y(p.top))); g.strokeStyle = col; g.lineWidth = 2.2; g.stroke();
+      g.beginPath(); r.forEach((p, i) => i ? g.lineTo(X(p.at), Y(p.bot)) : g.moveTo(X(p.at), Y(p.bot))); g.setLineDash([6, 4]); g.lineWidth = 1.4; g.stroke(); g.setLineDash([]);
+    });
+    P._slabLabelRun = runs.sort((a, b) => b.length - a.length)[0];
+    g.restore();
+  }
   // fault crossings: surface tick + apparent dip down to 20 km (typical crustal seismogenic depth),
   // at most 60 km horizontally; short dashed tick when the dip is unknown
   P.hits = [];
@@ -470,6 +498,31 @@ function draw(target){
     g.fillStyle = ci.main ? "#fff" : "#000"; g.fill(); g.lineWidth = ci.main ? 1.8 : 1.2; g.strokeStyle = ci.main ? "#000" : "#fff"; g.stroke();
     label(ci.name, x, y - 9, `${ci.main ? 650 : 400} ${ci.main ? 11 : 10}px ${F}`, T.label);
   });
+  // slab label, on top of the events (placed under the slab top line, on its longest stretch)
+  if (P.showSlab && P.slabProf && P._slabLabelRun && P._slabLabelRun.length > 10){
+    const r = P._slabLabelRun, p = r[Math.floor(r.length * .55)], col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
+    g.save(); g.beginPath(); g.rect(m.l, y0, plotW, plotH); g.clip();
+    g.font = `italic 650 11px ${F}`; g.textAlign = "left"; g.textBaseline = "top"; g.lineWidth = 3.5; g.strokeStyle = T.halo; g.lineJoin = "round";
+    g.strokeText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6); g.fillStyle = col; g.fillText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6);
+    g.restore();
+  }
+  // compact legend (bottom-right of the depth panel)
+  {
+    let items = [];
+    if (P.color === "tect" && A.SLAB_CLASSES){ const present = new Set(vis.map(v => v.e.slab && v.e.slab.cls)); items = A.SLAB_ORDER.filter(k => present.has(k)).map(k => ({c:A.SLAB_CLASSES[k].color, t:A.SLAB_CLASSES[k].short})); }
+    else if (P.color === "depth") items = A.DEPTH_COLORS.map(c => ({c:c[1], t:c[2]}));
+    const sl = P.showSlab && P.slabProf;
+    if (items.length || sl){
+      g.font = `11px ${F}`; const lh = 15, w = Math.max(0, ...items.map(i => g.measureText(i.t).width), sl ? g.measureText("Techo de la placa ± incert.").width : 0) + 34;
+      const h = (items.length + (sl ? 2 : 0)) * lh + 8, bx = m.l + plotW - w - 6, by = y0 + plotH - h - 6;
+      g.fillStyle = A.theme === "dark" ? "rgba(26,31,38,.9)" : "rgba(255,255,255,.9)"; g.fillRect(bx, by, w, h); g.strokeStyle = T.axis; g.lineWidth = 1; g.strokeRect(bx + .5, by + .5, w, h);
+      g.textAlign = "left"; g.textBaseline = "middle"; let yy = by + 4 + lh / 2;
+      items.forEach(i => { g.beginPath(); g.arc(bx + 12, yy, 4.5, 0, 2 * Math.PI); g.fillStyle = i.c; g.fill(); g.strokeStyle = T.stroke; g.lineWidth = .8; g.stroke(); g.fillStyle = T.ink; g.fillText(i.t, bx + 24, yy); yy += lh; });
+      if (sl){ const col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
+        g.strokeStyle = col; g.lineWidth = 2.2; g.beginPath(); g.moveTo(bx + 6, yy); g.lineTo(bx + 19, yy); g.stroke(); g.fillStyle = T.ink; g.fillText("Techo de la placa ± incert.", bx + 24, yy); yy += lh;
+        g.setLineDash([5, 3]); g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx + 6, yy); g.lineTo(bx + 19, yy); g.stroke(); g.setLineDash([]); g.fillText("Base de la placa", bx + 24, yy); }
+    }
+  }
   // time label while playing
   if (P.playing || P.mode !== "acum"){
     g.font = `700 13px ${F}`; g.textAlign = "right"; g.textBaseline = "top"; g.fillStyle = T.ink;
@@ -506,7 +559,7 @@ cv.addEventListener("mousemove", ev => {
   if (!h){ tip.style.display = "none"; cv.style.cursor = "default"; return; }
   cv.style.cursor = h.kind === "sismo" ? "pointer" : "default";
   let html = "";
-  if (h.kind === "sismo"){ const e = h.e; html = `<b>M${e.mag.toFixed(1)}</b> · ${e.prof ?? "?"} km · ${A.fmtLocal(e.t, false)}<br>${esc(e.ref)}<br><span class="tip-sub">${nf(h.v.at)} km desde A · ${nf(Math.abs(h.v.xt))} km fuera del corte</span>`; }
+  if (h.kind === "sismo"){ const e = h.e; html = `<b>M${e.mag.toFixed(1)}</b> · ${e.prof ?? "?"} km · ${A.fmtLocal(e.t, false)}<br>${esc(e.ref)}<br><span class="tip-sub">${nf(h.v.at)} km desde A · ${nf(Math.abs(h.v.xt))} km fuera del corte${e.slab ? "<br>Ambiente (Slab2): " + esc(A.slab.text(e)) : ""}</span>`; }
   else if (h.kind === "volcan"){ const p = h.v.p; html = `<b>Volcán ${esc(p.nombre)}</b><br><span class="tip-sub">${esc(p.estado)} · peligrosidad ${esc(p.peligrosidad.toLowerCase())} · ${nf(Math.abs(h.v.xt))} km del corte</span>`; }
   else { const f = h.f; html = `<b>${esc(f.p.nombre || "Falla sin nombre")}</b><br><span class="tip-sub">${esc(f.p.tipo)}${f.dip != null ? ` · buzamiento ${f.dip}° ${esc(f.p.buz_dir || "")} (aparente en el corte: ${Math.round(f.app)}°)` : " · buzamiento desconocido"}</span>`; }
   tip.innerHTML = html; tip.style.display = "block";
@@ -522,11 +575,14 @@ new ResizeObserver(() => { draw(); drawHist(); }).observe(panel);
 
 // ------------------------------------------------------------ export
 function exportCSV(){
-  const rows = [["codigo","fecha_utc","latitud","longitud","magnitud","profundidad_km","distancia_desde_A_km","distancia_al_corte_km","referencia"]];
+  const rows = [["codigo","fecha_utc","latitud","longitud","magnitud","profundidad_km","distancia_desde_A_km","distancia_al_corte_km","ambiente_slab2","en_limite_con","techo_placa_km","dist_vertical_al_techo_km","tolerancia_km","referencia"]];
   const [a, b] = curWindow();
   P.ev.filter(x => x.e.t >= a && x.e.t <= b).sort((x, y) => x.at - y.at).forEach(({e, at, xt}) =>
-    rows.push([e.id, new Date(e.t).toISOString().slice(0, 19) + "Z", e.lat, e.lon, e.mag, e.prof, at.toFixed(2), xt.toFixed(2), `"${(e.ref || "").replace(/"/g, '""')}"`]));
-  const meta = `# Perfil A (${P.A.lat.toFixed(4)}, ${P.A.lon.toFixed(4)}) – A′ (${P.B.lat.toFixed(4)}, ${P.B.lon.toFixed(4)}); franja ${P.width} km; M >= ${P.magMin}; ${A.fmtDate(a)} a ${A.fmtDate(b)}; fuente: IGP\n# distancia_al_corte_km: positiva a la derecha de A->A′\n`;
+    rows.push([e.id, new Date(e.t).toISOString().slice(0, 19) + "Z", e.lat, e.lon, e.mag, e.prof, at.toFixed(2), xt.toFixed(2),
+      e.slab ? e.slab.cls : "", e.slab && e.slab.alt ? e.slab.alt : "", e.slab && e.slab.top != null ? e.slab.top.toFixed(1) : "",
+      e.slab && e.slab.dz != null ? e.slab.dz.toFixed(1) : "", e.slab && e.slab.tol != null ? e.slab.tol.toFixed(1) : "",
+      `"${(e.ref || "").replace(/"/g, '""')}"`]));
+  const meta = `# Perfil A (${P.A.lat.toFixed(4)}, ${P.A.lon.toFixed(4)}) – A′ (${P.B.lat.toFixed(4)}, ${P.B.lon.toFixed(4)}); franja ${P.width} km; M >= ${P.magMin}; ${A.fmtDate(a)} a ${A.fmtDate(b)}; fuente: IGP\n# distancia_al_corte_km: positiva a la derecha de A->A′\n# ambiente_slab2: clasificación geométrica respecto de Slab2 (Hayes et al., 2018); dist_vertical_al_techo_km positiva = bajo el techo de la placa\n`;
   download(new Blob(["﻿" + meta + rows.map(r => r.join(",")).join("\n")], {type:"text/csv;charset=utf-8"}), "csv");
 }
 function download(blob, ext){
@@ -547,7 +603,7 @@ async function exportPNG(){
   g.font = `12px ${F}`; g.fillStyle = T.muted;
   g.fillText(`A ${f4(P.A.lat)} ${f4(P.A.lon).replace("N", "E").replace("S", "O")} → A′ ${f4(P.B.lat)} ${f4(P.B.lon).replace("N", "E").replace("S", "O")} · ${nf(P.L)} km · franja ${nf(P.width)} km · ${nf(res.vis.length)} sismos M ≥ ${P.magMin.toFixed(1)} · ${A.fmtDate(a)} – ${A.fmtDate(b)}`, 14, 32);
   g.font = `9.5px ${F}`; g.textAlign = "right"; g.textBaseline = "middle";
-  g.fillText(`Sismos: IGP · Fallas: GEM GAF-DB · Volcanes: IGP (2022), Smithsonian GVP · Topografía/batimetría: AWS Terrain Tiles · Generado ${A.fmtLocal(Date.now(), false)} (hora de Perú)`, W - 10, H + head + foot / 2);
+  g.fillText(`Sismos: IGP · Fallas: GEM GAF-DB · Volcanes: IGP (2022), Smithsonian GVP · Placa: Slab2 (Hayes et al., 2018) · Topografía/batimetría: AWS Terrain Tiles · Generado ${A.fmtLocal(Date.now(), false)} (hora de Perú)`, W - 10, H + head + foot / 2);
   const blob = await new Promise(r => out.toBlob(r, "image/png"));
   download(blob, "png");
 }
@@ -565,5 +621,5 @@ A.onDataReady.push(() => {
   if (s && !P.open){ const v = s.split(",").map(Number); if (v.length >= 4 && v.every(isFinite)) openProfile({lat:v[0], lon:v[1]}, {lat:v[2], lon:v[3]}, v[4] || 100); }
   else if (P.open) recompute(false);
 });
-A.redrawProfile = () => { if (P.open){ drawHist(); draw(); } };
+A.redrawProfile = () => { if (P.open){ sampleSlab(); drawHist(); draw(); } };
 })();

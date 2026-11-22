@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script>/* set the theme before first paint to avoid a light flash */
+try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.dataset.theme=t;}catch(e){}</script>
 <title>Sismos del Perú · Mapa en tiempo casi real (IGP)</title>
 <meta name="description" content="Mapa interactivo de los sismos reportados por el Instituto Geofísico del Perú (IGP), con estadísticas, fallas activas, ciudades, carreteras y límites departamentales.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -14,6 +17,7 @@
     <button id="toggle-panel" aria-label="Mostrar panel">☰ Panel</button>
     <h1>Sismos del Perú <small id="updated">cargando…</small></h1>
     <div id="latest" title="Ir al último sismo"></div>
+    <button id="theme" class="theme-btn" aria-label="Cambiar a modo oscuro">☾</button>
   </header>
   <main>
     <aside id="panel">

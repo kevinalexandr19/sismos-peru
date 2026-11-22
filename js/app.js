@@ -43,11 +43,22 @@ function colorOf(e){
 }
 const radiusOf = m => Math.min(26, Math.max(3, Math.pow(1.75, m - 1.2)));
 const lightBg = c => ["#f7e04b","#f2c12e","#9ecae1","#bdbdbd"].includes(c);
-const FAULT_STYLE = {Subduction_Thrust:["#111",3,"Subducción (fosa)"],Reverse:["#c0392b",1.8,"Inversa"],Normal:["#1f5fbf",1.8,"Normal"],Dextral:["#1a9850",1.8,"Dextral"],Sinistral:["#8e44ad",1.8,"Sinistral"]};
-const faultStyleOf = t => { const k = Object.keys(FAULT_STYLE).find(k => (t || "").startsWith(k)); return k ? FAULT_STYLE[k] : ["#7f6a55",1.4,"Otra / sin datos"]; };
-const SLIP_ES = {Reverse:"inversa",Normal:"normal",Dextral:"dextral",Sinistral:"sinistral",Subduction_Thrust:"cabalgamiento de subducción",Blind_Thrust:"cabalgamiento ciego",Anticline:"anticlinal",Syncline:"sinclinal"};
-const slipEs = t => t ? t.split("-").map(x => SLIP_ES[x] || x.toLowerCase()).join("–") : "no especificada";
-const ROAD_STYLE = {autopista:{color:"#c2410c",weight:3,label:"Autopista / vía expresa"}, principal:{color:"#7c5a2e",weight:1.9,label:"Carretera principal"}, secundaria:{color:"#a4906f",weight:1.1,dashArray:"4 3",label:"Carretera secundaria"}};
+// Theme-dependent colours of reference layers (light / dark mode)
+const THEME_COLORS = {
+  light:{dep:"#5b6470", sub:"#111111", autopista:"#c2410c", principal:"#7c5a2e", secundaria:"#a4906f", cityFill:"#ffffff", cityStroke:"#222222", secFill:"#888888", quakeStroke:"#2b2b2b"},
+  dark: {dep:"#9aa3ae", sub:"#eeeeee", autopista:"#fb923c", principal:"#c9a26a", secundaria:"#8f7d62", cityFill:"#ffffff", cityStroke:"#111111", secFill:"#b5b5b5", quakeStroke:"#111111"}
+};
+APP.theme = "light";
+const TC = k => THEME_COLORS[APP.theme][k];
+APP.TC = TC;
+// Fault classes come from data/fallas_activas.geojson ("clase"), written by scripts/traducir_fallas.py
+const FAULT_STYLE = {subduccion:[null,3,"Subducción (fosa)"], inversa:["#c0392b",1.8,"Falla inversa"], normal:["#1f5fbf",1.8,"Falla normal"],
+  dextral:["#1a9850",1.8,"Falla dextral"], sinistral:["#8e44ad",1.8,"Falla sinistral"], rumbo:["#0e9aa7",1.8,"Falla de rumbo (sentido no definido)"], otra:["#8a7660",1.4,"Cinemática no especificada"]};
+const faultStyleOf = c => { const s = FAULT_STYLE[c] || FAULT_STYLE.otra; return [s[0] || TC("sub"), s[1], s[2]]; };
+const ROAD_STYLE = {autopista:{weight:3,label:"Autopista / vía expresa"}, principal:{weight:1.9,label:"Carretera principal"}, secundaria:{weight:1.1,dashArray:"4 3",label:"Carretera secundaria"}};
+const roadStyle = c => ({...ROAD_STYLE[c], color:TC(c), opacity:.85});
+const PLATES = {NZ:"Nazca", SA:"Sudamericana", CO:"Cocos", PM:"Panamá", CA:"Caribe", ND:"Andes del Norte", AP:"Altiplano"};
+const plateName = n => n.split(/[-\\/]/).map(c => PLATES[c] || c).join(" – ");
 Object.assign(APP, {DEPTH_COLORS, AGE_COLORS, colorOf, depthColor, radiusOf, FAULT_STYLE, ROAD_STYLE});
 
 // ---------------------------------------------------------------- map & layers
@@ -55,12 +66,12 @@ const map = APP.map = L.map("map", {preferCanvas:true, worldCopyJump:true, zoomS
 const tileOpts = {crossOrigin:"anonymous"};          // needed to export the basemap to PNG
 const BASES = APP.BASES = {
   topo:{name:"Relieve (Esri)", layer:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",{...tileOpts,maxZoom:18,attribution:"Tiles © Esri"}), credit:"Esri World Topo"},
-  light:{name:"Claro (CARTO)", layer:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{...tileOpts,maxZoom:19,attribution:"© OpenStreetMap, © CARTO"}), credit:"© OpenStreetMap, © CARTO"},
+  light:{name:"Gris claro (Esri)", layer:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",{...tileOpts,maxZoom:16,attribution:"Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap"}), credit:"Esri World Light Gray Canvas"},
   osm:{name:"OpenStreetMap", layer:L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{...tileOpts,maxZoom:19,attribution:"© OpenStreetMap"}), credit:"© OpenStreetMap"},
   sat:{name:"Satélite (Esri)", layer:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{...tileOpts,maxZoom:18,attribution:"Imagery © Esri"}), credit:"Esri World Imagery"},
-  dark:{name:"Oscuro (CARTO)", layer:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{...tileOpts,maxZoom:19,attribution:"© OpenStreetMap, © CARTO"}), credit:"© OpenStreetMap, © CARTO"}
+  dark:{name:"Gris oscuro (Esri)", layer:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",{...tileOpts,maxZoom:16,attribution:"Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap"}), credit:"Esri World Dark Gray Canvas"}
 };
-APP.base = "light"; BASES.light.layer.addTo(map);
+APP.base = "light";            // the theme code below may switch it to "dark" before first paint
 map.createPane("quakes").style.zIndex = 420;        // only for the "latest quake" pulse marker
 // One canvas for every vector layer: with one canvas per pane the top canvas would
 // swallow all mouse events and hide tooltips/clicks of the layers below it.
@@ -69,29 +80,30 @@ const R = APP.renderer = L.canvas({padding:.3});
 const L_ = APP.layers = {};
 L_.quakes = L.layerGroup().addTo(map);
 L_.heat = L.heatLayer([], {radius:18, blur:16, maxZoom:9, minOpacity:.25});
-L_.deps = L.geoJSON(null, {renderer:R, style:{color:"#5b6470", weight:1.1, fill:true, fillOpacity:0, dashArray:"4 3"}}).addTo(map);
+const depStyle = () => ({color:TC("dep"), weight:1.1, fill:true, fillOpacity:0, dashArray:"4 3"});
+L_.deps = L.geoJSON(null, {renderer:R, style:depStyle}).addTo(map);
 L_.depLabels = L.layerGroup().addTo(map);
-L_.roads = L.geoJSON(null, {renderer:R, style:f => ({...ROAD_STYLE[f.properties.clase], opacity:.85}),
+L_.roads = L.geoJSON(null, {renderer:R, style:f => roadStyle(f.properties.clase),
   onEachFeature:(f, l) => l.bindTooltip(ROAD_STYLE[f.properties.clase].label + (f.properties.nombre ? `: ${esc(f.properties.nombre)}` : ""), {sticky:true})}).addTo(map);
 L_.citiesMain = L.layerGroup().addTo(map);
 L_.citiesSec = L.layerGroup().addTo(map);
 L_.faults = L.geoJSON(null, {renderer:R,
-  style:f => { const s = faultStyleOf(f.properties.slip_type); return {color:s[0], weight:s[1], opacity:.85}; },
+  style:f => { const s = faultStyleOf(f.properties.clase); return {color:s[0], weight:s[1], opacity:.85}; },
   onEachFeature:(f, l) => {
-    const p = f.properties, name = p.name ? titleCase(p.name.replace(/_/g, " ")) : null;
-    l.bindTooltip(name ? `<b>${esc(name)}</b><br><span style="color:#666">Falla ${esc(slipEs(p.slip_type))}</span>`
-                       : `Falla sin nombre<br><span style="color:#666">${esc(slipEs(p.slip_type))}</span>`, {sticky:true, className:"fault-tip"});
+    const p = f.properties, name = p.nombre || null;
+    l.bindTooltip(name ? `<b>${esc(name)}</b><br><span class="tip-sub">${esc(p.tipo)}</span>`
+                       : `Falla sin nombre<br><span class="tip-sub">${esc(p.tipo)}</span>`, {sticky:true, className:"fault-tip"});
     l.bindPopup(`<div class="pop"><h3>${esc(name || "Falla sin nombre")}</h3><div class="sub">Falla activa</div><table>
-      <tr><td>Cinemática</td><td>${esc(slipEs(p.slip_type))}</td></tr>
-      ${p.net_slip_rate ? `<tr><td>Tasa de desliz.</td><td>${esc(p.net_slip_rate)} mm/a</td></tr>` : ""}
-      ${p.average_dip ? `<tr><td>Buzamiento</td><td>${esc(p.average_dip)}° ${esc(p.dip_dir || "")}</td></tr>` : ""}
-      <tr><td>Fuente</td><td>${esc(p.catalog_name || "GEM GAF-DB")}</td></tr></table></div>`);
-    const w = faultStyleOf(p.slip_type)[1];
+      <tr><td>Cinemática</td><td>${esc(p.tipo)}</td></tr>
+      ${p.net_slip_rate ? `<tr><td>Tasa de desliz.</td><td>${esc(p.net_slip_rate)} mm/año</td></tr>` : ""}
+      ${p.average_dip ? `<tr><td>Buzamiento</td><td>${esc(p.average_dip)}° ${esc(p.buz_dir || "")}</td></tr>` : ""}
+      <tr><td>Fuente</td><td>${esc(p.fuente || "GEM GAF-DB")}</td></tr></table></div>`);
+    const w = faultStyleOf(p.clase)[1];
     l.on("mouseover", () => { l.setStyle({weight:w + 2.5, opacity:1}); });
     l.on("mouseout", () => L_.faults.resetStyle(l));
   }}).addTo(map);
 L_.plates = L.geoJSON(null, {renderer:R, style:{color:"#e8590c", weight:2.2, opacity:.8, dashArray:"8 5"},
-  onEachFeature:(f, l) => l.bindTooltip(`Límite de placas: ${esc(f.properties.Name || "")}`, {sticky:true})});
+  onEachFeature:(f, l) => l.bindTooltip(`Límite de placas: ${esc(plateName(f.properties.Name || ""))}${f.properties.Type === "subduction" ? "<br><span class=\"tip-sub\">zona de subducción</span>" : ""}`, {sticky:true})});
 const titleCase = s => s.toLowerCase().replace(/(^|[\s(-])\S/g, c => c.toUpperCase());
 APP.titleCase = titleCase;
 // drawing order inside the shared canvas, bottom to top
@@ -203,13 +215,13 @@ APP.legendModel = function(){
     S.push({title: APP.colorBy === "age" ? "Antigüedad del sismo" : "Profundidad del hipocentro", items: src.map(c => ({type:"dot", color:c[1], label:c[2]}))});
     S.push({title:"Magnitud", sizes:[3,4,5,6,7]});
   }
-  if (map.hasLayer(L_.faults)) S.push({title:"Fallas activas", items:Object.values(FAULT_STYLE).map(s => ({type:"line", color:s[0], width:s[1], label:s[2]}))});
+  if (map.hasLayer(L_.faults)) S.push({title:"Fallas activas", items:Object.keys(FAULT_STYLE).map(k => { const s = faultStyleOf(k); return {type:"line", color:s[0], width:s[1], label:s[2]}; })});
   const other = [];
   if (map.hasLayer(L_.plates)) other.push({type:"line", color:"#e8590c", width:2.2, dash:[8,5], label:"Límite de placas"});
-  if (map.hasLayer(L_.roads)) Object.values(ROAD_STYLE).forEach(r => other.push({type:"line", color:r.color, width:r.weight, dash:r.dashArray ? [4,3] : null, label:r.label}));
+  if (map.hasLayer(L_.roads)) Object.entries(ROAD_STYLE).forEach(([k, r]) => other.push({type:"line", color:TC(k), width:r.weight, dash:r.dashArray ? [4,3] : null, label:r.label}));
   if (map.hasLayer(L_.citiesMain)) other.push({type:"city", main:true, label:"Ciudad principal"});
   if (map.hasLayer(L_.citiesSec)) other.push({type:"city", main:false, label:"Ciudad secundaria"});
-  if (map.hasLayer(L_.deps)) other.push({type:"line", color:"#5b6470", width:1.1, dash:[4,3], label:"Límite departamental"});
+  if (map.hasLayer(L_.deps)) other.push({type:"line", color:TC("dep"), width:1.1, dash:[4,3], label:"Límite departamental"});
   if (other.length) S.push({title:"Referencias", items:other});
   return S;
 };
@@ -219,7 +231,7 @@ function drawLegend(){
   b.innerHTML = APP.legendModel().map(s => `<h4>${s.title}</h4>` + (s.sizes
     ? `<div class="sizes">${s.sizes.map(m => { const r = radiusOf(m); return `<span><i style="width:${2*r}px;height:${2*r}px"></i>${m}</span>`; }).join("")}</div>`
     : s.items.map(i => i.type === "dot" ? `<div><span class="sw" style="background:${i.color}"></span>${i.label}</div>`
-      : i.type === "city" ? `<div><span class="sw" style="background:${i.main ? "#fff" : "#888"};border:${i.main ? "2px solid #222" : "1px solid #555"};width:${i.main ? 10 : 7}px;height:${i.main ? 10 : 7}px;margin-left:${i.main ? 0 : 2}px"></span>${i.label}</div>`
+      : i.type === "city" ? `<div><span class="sw" style="background:${i.main ? TC("cityFill") : TC("secFill")};border:${i.main ? "2px solid #222" : "1px solid #555"};width:${i.main ? 10 : 7}px;height:${i.main ? 10 : 7}px;margin-left:${i.main ? 0 : 2}px"></span>${i.label}</div>`
       : `<div><span class="ln" style="border-top:${Math.max(2.5, i.width)}px ${i.dash ? "dashed" : "solid"} ${i.color}"></span>${i.label}</div>`).join(""))).join("");
 }
 APP.drawLegend = drawLegend;
@@ -326,7 +338,7 @@ async function loadLayers(){
   if (car) L_.roads.addData(car);
   if (ciu) ciu.features.forEach(f => {
     const [lon, lat] = f.geometry.coordinates, p = f.properties, main = p.rango === "principal";
-    const m = L.circleMarker([lat, lon], {renderer:R, radius: p.capital === "Capital nacional" ? 5.5 : main ? 4 : 2.6, color:"#222", weight: main ? 1.8 : 1, fillColor: main ? "#fff" : "#888", fillOpacity:1});
+    const m = L.circleMarker([lat, lon], {renderer:R, radius: p.capital === "Capital nacional" ? 5.5 : main ? 4 : 2.6, main, color:TC("cityStroke"), weight: main ? 1.8 : 1, fillColor: main ? TC("cityFill") : TC("secFill"), fillOpacity:1});
     m.bindTooltip(esc(p.nombre), {permanent:true, direction:"right", offset:[5,0], className:`lbl ${main ? "city-main" : "city-sec"}`, interactive:false});
     m.bindPopup(`<div class="pop"><h3>${esc(p.nombre)}</h3><div class="sub">${p.capital ? esc(p.capital) : main ? "Ciudad principal" : "Ciudad secundaria"}</div>${p.pob ? `Población aprox.: ${nf(p.pob)} hab. (Natural Earth)` : ""}</div>`);
     m.addTo(main ? L_.citiesMain : L_.citiesSec);
@@ -463,7 +475,7 @@ function drawList(){
   const more = $("#more"); if (more) more.onclick = () => { shown += 300; drawList(); };
 }
 $("#list").addEventListener("click", ev => { const d = ev.target.closest(".ev"); if (d){ select(d.dataset.id, true); if (innerWidth < 820) $("#panel").classList.remove("open"); } });
-$("#list").addEventListener("mouseover", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k){ k.m.setStyle({weight:2.5, color:"#000"}); k.m.bringToFront(); } });
+$("#list").addEventListener("mouseover", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k){ k.m.setStyle({weight:2.5, color:APP.theme === "dark" ? "#fff" : "#000"}); k.m.bringToFront(); } });
 $("#list").addEventListener("mouseout", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k) k.m.setStyle({weight:.7, color:"#2b2b2b"}); });
 
 function popupHtml(e){
@@ -528,6 +540,36 @@ document.querySelector(".tabs").addEventListener("click", ev => {
   if (APP.maybeDrawStats) APP.maybeDrawStats();
 });
 $("#toggle-panel").onclick = () => $("#panel").classList.toggle("open");
+
+// ---------------------------------------------------------------- light / dark theme
+// Saved choice wins; otherwise follow the operating system. The basemap follows the
+// theme only while it is one of the two neutral grey basemaps.
+function applyTheme(t){
+  const prev = APP.theme; APP.theme = t;
+  document.documentElement.dataset.theme = t;
+  const btn = $("#theme"); btn.textContent = t === "dark" ? "☀" : "☾";
+  btn.title = btn.ariaLabel = t === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+  const want = t === "dark" ? "dark" : "light";
+  if (!map.hasLayer(BASES[APP.base].layer) || (APP.base !== want && ["light","dark"].includes(APP.base))){
+    if (map.hasLayer(BASES[APP.base].layer)) map.removeLayer(BASES[APP.base].layer);
+    APP.base = want; BASES[want].layer.addTo(map);
+  }
+  if (prev !== t || !APP.themeReady){
+    L_.deps.setStyle(depStyle());
+    L_.roads.setStyle(f => roadStyle(f.properties.clase));
+    L_.faults.setStyle(f => { const s = faultStyleOf(f.properties.clase); return {color:s[0], weight:s[1], opacity:.85}; });
+    [L_.citiesMain, L_.citiesSec].forEach(g => g.eachLayer(m => m.setStyle({color:TC("cityStroke"), fillColor:m.options.main ? TC("cityFill") : TC("secFill")})));
+    drawLayersWin(); drawLegend();
+    if (APP.drawStats){ APP.statsDirty = true; APP.maybeDrawStats(); }
+  }
+  APP.themeReady = true;
+}
+APP.applyTheme = applyTheme;
+let savedTheme = null; try { savedTheme = localStorage.getItem("theme"); } catch (e) {}
+const mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+applyTheme(savedTheme || (mq && mq.matches ? "dark" : "light"));
+if (mq && mq.addEventListener) mq.addEventListener("change", ev => { let s = null; try { s = localStorage.getItem("theme"); } catch (e) {} if (!s) applyTheme(ev.matches ? "dark" : "light"); });
+$("#theme").onclick = () => { const t = APP.theme === "dark" ? "light" : "dark"; try { localStorage.setItem("theme", t); } catch (e) {} applyTheme(t); };
 
 // ---------------------------------------------------------------- start
 loadLayers();

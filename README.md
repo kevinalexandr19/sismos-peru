@@ -8,6 +8,7 @@ Mapa web 2D de los sismos reportados por el **Instituto Geofísico del Perú (IG
 - Fechas: últimas 24 h, 7 días, 30 días o 12 meses; un día, un mes o un año concretos (con flechas para avanzar o retroceder); un rango personalizado o todo el catálogo.
 - Filtros por magnitud mínima, profundidad (superficial ≤ 60 km, intermedia 61–300 km, profunda > 300 km), región del epicentro, epicentro en tierra o en el mar, y texto libre.
 - Pestaña **Estadísticas e insights**: indicadores, textos automáticos (mayor sismo, mayor intensidad, región más activa, día más activo, comparación con el periodo anterior con prueba binomial, valor b) y gráficos (sismos por hora/día/semana/mes, magnitud en el tiempo, Gutenberg–Richter, sección de profundidad, distribución de profundidades, sismos por región).
+- Modo claro y modo oscuro (sigue la preferencia del sistema; se puede cambiar con el botón ☾/☀ y se recuerda).
 - Capas: límites y nombres departamentales, ciudades principales y secundarias, carreteras y autopistas, fallas activas (nombre al pasar el cursor), límites de placas, mapa de calor y cinco mapas base.
 - Ventanas flotantes (capas, leyenda, resumen) que se ocultan una a una o todas a la vez.
 - Exportación a PNG de la vista actual del mapa, sin la interfaz, con título, resumen de datos, leyenda, escala y norte.
@@ -29,7 +30,8 @@ Fuente: `https://ultimosismo.igp.gob.pe/api/ultimo-sismo/ajaxb/{año}`
 | Capa | Fuente |
 |---|---|
 | Sismos | IGP – Centro Sismológico Nacional, reportes sísmicos |
-| Fallas activas | GEM Global Active Faults Database (Styron & Pagani, 2020, *Earthquake Spectra*), recortada al Perú |
+| Fallas activas | GEM Global Active Faults Database (Styron & Pagani, 2020, *Earthquake Spectra*), recortada al Perú; nombres y cinemática traducidos al español con `scripts/traducir_fallas.py` |
+| Mapas base | Esri (gris claro, gris oscuro, relieve, satélite) y OpenStreetMap |
 | Límites de placas | Bird (2003), modelo PB2002 |
 | Departamentos | INEI, vía [juaneladio/peru-geojson](https://github.com/juaneladio/peru-geojson) |
 | Ciudades y carreteras | Natural Earth 1:10m (populated places, roads), recortadas al Perú |

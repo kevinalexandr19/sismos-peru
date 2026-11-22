@@ -186,12 +186,14 @@ toolbar.onAdd = () => {
   L.DomEvent.disableClickPropagation(d);
   d.innerHTML = Object.entries(WINS).map(([k, w]) => `<button data-win="${k}" title="Mostrar/ocultar ${w.title.toLowerCase()}">${w.icon} <span class="tx">${w.title}</span></button>`).join("")
     + `<button data-all="1" title="Ocultar o mostrar todas las ventanas">◻ <span class="tx">Ocultar todo</span></button>`
+    + `<button data-profile="1" title="Trazar un corte vertical (perfil de sismos en profundidad)">⟋ <span class="tx">Perfil</span></button>`
     + `<button data-export="1" class="primary" title="Descargar la vista actual como imagen">⤓ <span class="tx">PNG</span></button>`;
   d.addEventListener("click", ev => {
     const b = ev.target.closest("button"); if (!b) return;
     if (b.dataset.win) setWin(b.dataset.win, !WINS[b.dataset.win].open);
     else if (b.dataset.all) { const anyOpen = Object.values(WINS).some(w => w.open); Object.keys(WINS).forEach(k => setWin(k, !anyOpen)); }
     else if (b.dataset.export) APP.openExport && APP.openExport();
+    else if (b.dataset.profile) APP.startProfile && APP.startProfile();
   });
   return d;
 };
@@ -545,6 +547,8 @@ function select(id, fly){
   history.replaceState(null, "", `?evento=${encodeURIComponent(id)}`);
 }
 APP.select = (id) => select(id, true);
+APP.popupHtml = popupHtml;
+APP.faultStyleOf = faultStyleOf;
 document.addEventListener("click", ev => {
   const a = ev.target.closest("[data-copy]"); if (!a) return; ev.preventDefault();
   const u = `${location.origin}${location.pathname}?evento=${encodeURIComponent(a.dataset.copy)}`;
@@ -603,6 +607,7 @@ function applyTheme(t){
     [L_.citiesMain, L_.citiesSec].forEach(g => g.eachLayer(m => m.setStyle({color:m.options.main ? TC("cityStroke") : TC("secStroke"), fillColor:m.options.main ? TC("cityFill") : TC("secFill")})));
     drawLayersWin(); drawLegend();
     if (APP.drawStats){ APP.statsDirty = true; APP.maybeDrawStats(); }
+    if (APP.redrawProfile) APP.redrawProfile();
   }
   APP.themeReady = true;
 }
@@ -614,7 +619,9 @@ if (mq && mq.addEventListener) mq.addEventListener("change", ev => { let s = nul
 $("#theme").onclick = () => { const t = APP.theme === "dark" ? "light" : "dark"; try { localStorage.setItem("theme", t); } catch (e) {} applyTheme(t); };
 
 // ---------------------------------------------------------------- start
-loadLayers();
-loadQuakes(true);
-setInterval(() => loadQuakes(false), 5 * 60e3);
+// modules (e.g. the profile tool) register callbacks to run once layers and events are loaded
+APP.onDataReady = APP.onDataReady || [];
+const dataReady = () => APP.onDataReady.forEach(f => { try { f(); } catch (e) { console.error(e); } });
+Promise.all([loadLayers(), loadQuakes(true)]).then(dataReady);
+setInterval(() => loadQuakes(false).then(dataReady), 5 * 60e3);
 setInterval(() => { if (APP.ALL.length) drawLatest(); }, 60e3);

@@ -170,8 +170,8 @@ function openProfile(a, b, width){
   $("#pf-width").value = w2s(P.width);
   drawOverlay(); recompute(true); syncUrl();
   if (width){                                     // opened from a shared link: frame the swath above the panel
-    const ph = panel.getBoundingClientRect().height;
-    map.fitBounds(swathLayer.getBounds(), {paddingTopLeft:[40, 40], paddingBottomRight:[40, ph + 20], maxZoom:9});
+    const ph = panel.getBoundingClientRect().height, mh = map.getContainer().getBoundingClientRect().height;
+    map.fitBounds(swathLayer.getBounds(), {paddingTopLeft:[30, 30], paddingBottomRight:[30, Math.min(ph + 20, mh * .5)], maxZoom:8});
   }
 }
 A.openProfile = openProfile;

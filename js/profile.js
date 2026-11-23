@@ -129,7 +129,7 @@ panel.id = "profile"; panel.className = "prof hidden";
 panel.innerHTML = `
   <div class="prof-h">
     <div class="prof-title"><div><b>Perfil A–A′</b> <span id="pf-info"></span></div>
-      <div class="prof-wbtn"><button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button><button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button></div></div>
+      <div class="prof-wbtn"><button id="pf-opts" title="Mostrar u ocultar las opciones del perfil" aria-label="Opciones del perfil" aria-expanded="false">⚙</button><button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button><button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button></div></div>
     <div class="prof-ctrls">
       <label title="Ancho total de la franja">Ancho <input type="range" id="pf-width" min="0" max="100"><span id="pf-wval"></span></label>
       <label>M ≥ <select id="pf-mag"><option>4.5</option><option>5.0</option><option>5.5</option><option>6.0</option><option>6.5</option></select></label>
@@ -184,6 +184,7 @@ function closePanel(keepLine){
   setSync(false); syncUrl(true);
 }
 $("#pf-close").onclick = () => closePanel(false);
+$("#pf-opts").onclick = () => { const on = panel.classList.toggle("opts-open"); $("#pf-opts").setAttribute("aria-expanded", on); setTimeout(() => { draw(); drawHist(); }, 30); };
 $("#pf-min").onclick = () => { panel.classList.toggle("min"); $("#pf-min").textContent = panel.classList.contains("min") ? "▢" : "–"; map.invalidateSize(); setTimeout(draw, 50); };
 $("#pf-width").oninput = e => { P.width = s2w(+e.target.value); drawOverlay(); recompute(false); };
 $("#pf-width").onchange = () => { syncUrl(); };
@@ -414,8 +415,8 @@ const TH = () => A.theme === "dark"
 function niceStep(range, n){ const raw = range / n, m = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 2.5, 5, 10].map(f => f * m).find(s => s >= raw); }
 
 // ------------------------------------------------------------ main drawing
-function layout(w, h, legW){
-  const m = {l:56, r:legW ? legW + 26 : 16, t:18, b:30}, topoH = Math.max(60, Math.min(110, h * .26)), gap = 4;
+function layout(w, h, legW, legB){
+  const m = {l:w < 500 ? 44 : 56, r:legW ? legW + 26 : 12, t:18, b:30 + (legB || 0)}, topoH = w < 500 ? Math.max(40, Math.min(70, h * .16)) : Math.max(60, Math.min(110, h * .24)), gap = 4;
   return {w, h, m, topoH, y0:m.t + topoH + gap, plotW:w - m.l - m.r, plotH:h - (m.t + topoH + gap) - m.b};
 }
 function draw(target){
@@ -427,24 +428,44 @@ function draw(target){
   const g = c.getContext("2d"); g.setTransform(target ? target.__scale : dpr, 0, 0, target ? target.__scale : dpr, 0, 0);
   if (target && target.__w) g.clearRect(0, 0, W, H);
   const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
-  // legend contents first: its width sets the right margin of the plot
-  const leg = {items:[], sl:P.showSlab && P.slabProf, title:"", w:0};
-  if (P.color === "tect" && A.SLAB_CLASSES){ const present = new Set(visibleEvents().map(v => v.e.slab && v.e.slab.cls)); leg.title = "Ambiente (Slab2)"; leg.items = A.SLAB_ORDER.filter(k => present.has(k)).map(k => ({c:A.SLAB_CLASSES[k].color, t:A.SLAB_CLASSES[k].short})); }
-  else if (P.color === "depth"){ leg.title = "Profundidad"; leg.items = A.DEPTH_COLORS.map(c => ({c:c[1], t:c[2]})); }
-  else if (P.color === "year"){ const y0y = A.limaParts(catStart()).y, y1y = A.limaParts(Date.now()).y; leg.title = "Año"; for (let y = y0y; y <= y1y; y++) leg.items.push({c:colorOf({t:A.limaStart(y, 7, 1)}), t:String(y)}); }
+  // legend: always the complete set of symbols, whatever is visible (stable while animating)
+  const leg = {rows:[]};
+  const R_ = (k, t, extra) => leg.rows.push({k, t, ...(extra || {})});
+  if (P.color === "tect" && A.SLAB_CLASSES){ R_("title", "Ambiente (Slab2)"); A.SLAB_ORDER.forEach(k => R_("dot", A.SLAB_CLASSES[k].short, {c:A.SLAB_CLASSES[k].color})); }
+  else if (P.color === "year"){ R_("title", "Año"); const y0y = A.limaParts(catStart()).y, y1y = A.limaParts(Date.now()).y; for (let y = y0y; y <= y1y; y++) R_("dot", String(y), {c:colorOf({t:A.limaStart(y, 7, 1)})}); }
+  else { R_("title", "Profundidad"); A.DEPTH_COLORS.forEach(c => R_("dot", c[2], {c:c[1]})); }
+  R_("note", "Tamaño ∝ magnitud");
+  R_("title", "Placa de Nazca (Slab2)"); R_("top", "Techo de la placa"); R_("unc", "Incertidumbre"); R_("bot", "Base de la placa");
+  R_("title", "Superficie"); R_("vact", "Volcán activo"); R_("vpot", "Volcán pot. activo"); R_("cityM", "Ciudad principal"); R_("cityS", "Ciudad secundaria"); R_("fault", "Falla (cruce)");
+  if (W < 520){
+    const SHORT = {"Ambiente (Slab2)":"Ambiente", "Profundidad":"Prof.", "Placa de Nazca (Slab2)":"Slab2", "Techo de la placa":"Techo", "Incertidumbre":"Incert.", "Base de la placa":"Base",
+      "Volcán activo":"Volcán act.", "Volcán pot. activo":"Volcán pot.", "Ciudad principal":"Ciudad", "Ciudad secundaria":"Poblado", "Falla (cruce)":"Falla", "Tamaño ∝ magnitud":"Tamaño ∝ M", "Fuera del modelo":"Fuera"};
+    leg.rows.forEach(r => { if (SHORT[r.t]) r.t = SHORT[r.t]; });
+  }
   g.font = `11px ${F}`;
-  // rows of the legend (title, colour items, slab entries, size note); 15 px each
-  leg.rows = [];
-  if (leg.title) leg.rows.push({k:"title", t:leg.title});
-  leg.items.forEach(i => leg.rows.push({k:"dot", ...i}));
-  if (leg.sl) leg.rows.push({k:"gap"}, {k:"top", t:"Techo de la placa"}, {k:"unc", t:"Incertidumbre (Slab2)"}, {k:"bot", t:"Base de la placa"});
-  leg.rows.push({k:"gap"}, {k:"note", t:"Tamaño ∝ magnitud"});
-  const colW = Math.max(...leg.rows.map(r => r.t ? g.measureText(r.t).width + (r.k === "title" || r.k === "note" ? 4 : 18) : 0));
-  let lay = layout(W, H, colW);
-  const rowH = r => r.k === "gap" ? 6 : 15, need = leg.rows.reduce((s, r) => s + rowH(r), 0) + 4;
-  leg.cols = need > lay.plotH ? 2 : 1;
-  leg.colW = colW; leg.w = colW * leg.cols + (leg.cols - 1) * 14;
-  if (leg.cols === 2) lay = layout(W, H, leg.w);
+  const entryW = r => g.measureText(r.t).width + (r.k === "title" || r.k === "note" ? 4 : 18);
+  const colW = Math.max(...leg.rows.map(entryW));
+  const rowH = r => r.k === "title" ? 17 : 15;
+  leg.horizontal = W < 700;                         // phones / narrow panels: legend below the plot
+  let lay;
+  if (leg.horizontal){
+    // flow entries left to right; a title always starts a new line
+    // continuous flow (titles do not force a line break; extra space before them) to keep the legend short
+    g.font = `10.5px ${F}`;
+    let x = 0, lines = 1; const avail = W - 20;
+    leg.rows.forEach(r => { const w = entryW(r) + (r.k === "title" && x > 0 ? 22 : 10); if (x + w > avail && x > 0){ lines++; x = 0; } r._line = lines - 1; r._x = x + (r.k === "title" && x > 0 ? 12 : 0); x += w; });
+    leg.h = lines * 14 + 6;
+    lay = layout(W, H, 0, leg.h);
+  } else {
+    // groups = a title and its entries; a group is never split between columns
+    leg.groups = []; leg.rows.forEach(r => { if (r.k === "title" || !leg.groups.length) leg.groups.push([]); leg.groups[leg.groups.length - 1].push(r); });
+    const gH = gr => gr.reduce((t, r) => t + rowH(r), 0) + 6;
+    const pack = avail => { const cols = [[]]; let h = 0; leg.groups.forEach(gr => { const gh = gH(gr); if (h + gh > avail && cols[cols.length - 1].length){ cols.push([]); h = 0; } cols[cols.length - 1].push(gr); h += gh; }); return cols; };
+    lay = layout(W, H, colW);
+    let cols = pack(lay.plotH);
+    if (cols.length > 1){ lay = layout(W, H, colW * cols.length + (cols.length - 1) * 14); cols = pack(lay.plotH); }
+    leg.cols = cols; leg.colW = colW;
+  }
   const {m, topoH, y0, plotW, plotH} = lay;
   g.fillStyle = T.bg; g.fillRect(0, 0, W, H);
   const X = km => m.l + km / P.L * plotW;
@@ -573,24 +594,33 @@ function draw(target){
     g.strokeText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6); g.fillStyle = col; g.fillText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6);
     g.restore();
   }
-  // legend, in its own column to the right of the plot (never over the data)
-  if (leg.w){
-    const col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a", x0 = m.l + plotW + 14, yTop = y0 + 2, yMax = y0 + plotH;
-    let c = 0, yy = yTop;
-    g.textAlign = "left"; g.textBaseline = "middle";
-    leg.rows.forEach(r => {
-      const h = r.k === "gap" ? 6 : 15;
-      if (yy + h > yMax && c < leg.cols - 1 && r.k !== "gap"){ c++; yy = yTop; }
-      if (r.k === "gap"){ yy += h; return; }
-      const bx = x0 + c * (leg.colW + 14), cy = yy + h / 2;
-      g.font = r.k === "title" ? `700 11px ${F}` : `11px ${F}`; g.fillStyle = r.k === "note" ? T.muted : T.ink;
-      if (r.k === "dot"){ g.beginPath(); g.arc(bx + 6, cy, 4.5, 0, 2 * Math.PI); g.fillStyle = r.c; g.fill(); g.strokeStyle = T.stroke; g.lineWidth = .8; g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, bx + 18, cy); }
-      else if (r.k === "top"){ g.strokeStyle = col; g.lineWidth = 2.2; g.beginPath(); g.moveTo(bx, cy); g.lineTo(bx + 13, cy); g.stroke(); g.fillText(r.t, bx + 18, cy); }
-      else if (r.k === "unc"){ g.fillStyle = A.theme === "dark" ? "rgba(201,167,255,.25)" : "rgba(106,61,154,.18)"; g.fillRect(bx, cy - 5, 13, 10); g.fillStyle = T.ink; g.fillText(r.t, bx + 18, cy); }
-      else if (r.k === "bot"){ g.strokeStyle = col; g.setLineDash([5, 3]); g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx, cy); g.lineTo(bx + 13, cy); g.stroke(); g.setLineDash([]); g.fillText(r.t, bx + 18, cy); }
+  // legend: to the right of the plot (desktop) or under it (narrow panels); never over the data
+  {
+    const col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
+    const entry = (r, bx, cy, small) => {
+      const fs = small ? 10.5 : 11;
+      g.font = r.k === "title" ? `700 ${fs}px ${F}` : `${fs}px ${F}`; g.fillStyle = r.k === "note" ? T.muted : T.ink; g.textAlign = "left"; g.textBaseline = "middle";
+      const tx = bx + 18;
+      if (r.k === "dot"){ g.beginPath(); g.arc(bx + 6, cy, 4.5, 0, 2 * Math.PI); g.fillStyle = r.c; g.fill(); g.strokeStyle = T.stroke; g.lineWidth = .8; g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, tx, cy); }
+      else if (r.k === "top"){ g.strokeStyle = col; g.lineWidth = 2.2; g.beginPath(); g.moveTo(bx, cy); g.lineTo(bx + 13, cy); g.stroke(); g.fillText(r.t, tx, cy); }
+      else if (r.k === "unc"){ g.fillStyle = A.theme === "dark" ? "rgba(201,167,255,.25)" : "rgba(106,61,154,.18)"; g.fillRect(bx, cy - 5, 13, 10); g.fillStyle = T.ink; g.fillText(r.t, tx, cy); }
+      else if (r.k === "bot"){ g.strokeStyle = col; g.setLineDash([5, 3]); g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx, cy); g.lineTo(bx + 13, cy); g.stroke(); g.setLineDash([]); g.fillText(r.t, tx, cy); }
+      else if (r.k === "vact" || r.k === "vpot"){ const act = r.k === "vact", c2 = A.VOLC_COLORS["Alta"];
+        g.beginPath(); g.moveTo(bx + 6, cy - 6); g.lineTo(bx + 12, cy + 5); g.lineTo(bx, cy + 5); g.closePath(); g.fillStyle = act ? c2 : "#fff"; g.fill(); g.lineWidth = act ? 1.2 : 2.2; g.strokeStyle = act ? "#1a1a1a" : c2; g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, tx, cy); }
+      else if (r.k === "cityM" || r.k === "cityS"){ const mn = r.k === "cityM"; g.beginPath(); g.arc(bx + 6, cy, mn ? 4 : 3, 0, 2 * Math.PI); g.fillStyle = mn ? "#fff" : "#000"; g.fill(); g.lineWidth = mn ? 1.8 : 1.2; g.strokeStyle = mn ? "#000" : "#fff"; g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, tx, cy); }
+      else if (r.k === "fault"){ g.strokeStyle = A.FAULT_STYLE.inversa[0]; g.lineWidth = 2.2; g.beginPath(); g.moveTo(bx + 6, cy - 6); g.lineTo(bx + 6, cy + 6); g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, tx, cy); }
       else g.fillText(r.t, bx, cy);
-      yy += h;
-    });
+    };
+    if (leg.horizontal){
+      const yTop = H - leg.h + 2;
+      leg.rows.forEach(r => entry(r, 10 + r._x, yTop + r._line * 14 + 7, true));
+    } else {
+      const x0 = m.l + plotW + 14, yTop = y0 + 2;
+      leg.cols.forEach((col, c) => {
+        let yy = yTop;
+        col.forEach((gr, gi) => { if (gi) yy += 6; gr.forEach(r => { const h = rowH(r); entry(r, x0 + c * (leg.colW + 14), yy + h / 2); yy += h; }); });
+      });
+    }
   }
   // time label while playing
   if ((P.playing || P.mode !== "acum") && !(target && target.__w)){        // video frames show the date in their header
@@ -623,7 +653,10 @@ function hitAt(px, py){
   P.hits.forEach(h => { const d = Math.hypot(h.x - px, h.y - py); if (d <= h.r + 6 && d < bd){ bd = d; best = h; } });
   return best;
 }
-cv.addEventListener("mousemove", ev => {
+cv.addEventListener("mousemove", ev => showTip(ev.clientX, ev.clientY));
+cv.addEventListener("pointerdown", ev => { if (ev.pointerType !== "mouse") showTip(ev.clientX, ev.clientY); });
+function showTip(clientX, clientY){
+  const ev = {clientX, clientY};
   const r = cv.getBoundingClientRect(), h = hitAt(ev.clientX - r.left, ev.clientY - r.top);
   if (!h){ tip.style.display = "none"; cv.style.cursor = "default"; return; }
   cv.style.cursor = h.kind === "sismo" ? "pointer" : "default";
@@ -633,8 +666,8 @@ cv.addEventListener("mousemove", ev => {
   else { const f = h.f; html = `<b>${esc(f.p.nombre || "Falla sin nombre")}</b><br><span class="tip-sub">${esc(f.p.tipo)}${f.dip != null ? ` · buzamiento ${f.dip}° ${esc(f.p.buz_dir || "")} (aparente en el corte: ${Math.round(f.app)}°)` : " · buzamiento desconocido"}</span>`; }
   tip.innerHTML = html; tip.style.display = "block";
   const tx = Math.min(ev.clientX - r.left + 14, r.width - tip.offsetWidth - 4);
-  tip.style.left = tx + "px"; tip.style.top = Math.max(4, ev.clientY - r.top - tip.offsetHeight - 8) + "px";
-});
+  tip.style.left = Math.max(4, tx) + "px"; tip.style.top = Math.max(4, ev.clientY - r.top - tip.offsetHeight - 8) + "px";
+}
 cv.addEventListener("mouseleave", () => tip.style.display = "none");
 cv.addEventListener("click", ev => {
   const r = cv.getBoundingClientRect(), h = hitAt(ev.clientX - r.left, ev.clientY - r.top);

@@ -70,7 +70,7 @@ const plateName = n => n.split(/[-\\/]/).map(c => PLATES[c] || c).join(" – ");
 Object.assign(APP, {DEPTH_COLORS, AGE_COLORS, colorOf, depthColor, radiusOf, FAULT_STYLE, ROAD_STYLE});
 
 // ---------------------------------------------------------------- map & layers
-const map = APP.map = L.map("map", {preferCanvas:true, worldCopyJump:true, zoomSnap:.5}).setView([-9.3,-75.5], 5);
+const map = APP.map = L.map("map", {preferCanvas:true, worldCopyJump:true, zoomSnap:.5, zoomControl:innerWidth >= 820, tap:true}).setView([-9.3,-75.5], innerWidth < 820 ? 4.5 : 5);
 const tileOpts = {crossOrigin:"anonymous"};          // needed to export the basemap to PNG
 const BASES = APP.BASES = {
   topo:{name:"Relieve (Esri)", layer:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",{...tileOpts,maxZoom:18,attribution:"Tiles © Esri"}), credit:"Esri World Topo"},
@@ -529,7 +529,7 @@ function drawList(){
     + (v.length > shown ? `<button id="more">Mostrar más (${nf(v.length - shown)} restantes)</button>` : "");
   const more = $("#more"); if (more) more.onclick = () => { shown += 300; drawList(); };
 }
-$("#list").addEventListener("click", ev => { const d = ev.target.closest(".ev"); if (d){ select(d.dataset.id, true); if (innerWidth < 820) $("#panel").classList.remove("open"); } });
+$("#list").addEventListener("click", ev => { const d = ev.target.closest(".ev"); if (d){ select(d.dataset.id, true); if (innerWidth < 820) setPanel(false); } });
 $("#list").addEventListener("mouseover", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k){ k.m.setStyle({weight:2.5, color:APP.theme === "dark" ? "#fff" : "#000"}); k.m.bringToFront(); } });
 $("#list").addEventListener("mouseout", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k) k.m.setStyle({weight:.7, color:"#2b2b2b"}); });
 
@@ -598,7 +598,12 @@ document.querySelector(".tabs").addEventListener("click", ev => {
   document.querySelectorAll(".tabpane").forEach(p => p.classList.toggle("on", p.id === b.dataset.tab));
   if (APP.maybeDrawStats) APP.maybeDrawStats();
 });
-$("#toggle-panel").onclick = () => $("#panel").classList.toggle("open");
+// phones: the filter panel slides over the map; close it with ×, the backdrop or after choosing an event
+const setPanel = open => { $("#panel").classList.toggle("open", open); document.body.classList.toggle("panel-open", open); };
+$("#toggle-panel").onclick = () => setPanel(!$("#panel").classList.contains("open"));
+$("#close-panel").onclick = () => setPanel(false);
+$("#backdrop").onclick = () => setPanel(false);
+APP.setPanel = setPanel;
 
 // ---------------------------------------------------------------- light / dark theme
 // Saved choice wins; otherwise follow the operating system. The basemap follows the
@@ -627,9 +632,7 @@ function applyTheme(t){
 }
 APP.applyTheme = applyTheme;
 let savedTheme = null; try { savedTheme = localStorage.getItem("theme"); } catch (e) {}
-const mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
-applyTheme(savedTheme || (mq && mq.matches ? "dark" : "light"));
-if (mq && mq.addEventListener) mq.addEventListener("change", ev => { let s = null; try { s = localStorage.getItem("theme"); } catch (e) {} if (!s) applyTheme(ev.matches ? "dark" : "light"); });
+applyTheme(savedTheme || "light");                 // light by default; dark only if the user chose it
 $("#theme").onclick = () => { const t = APP.theme === "dark" ? "light" : "dark"; try { localStorage.setItem("theme", t); } catch (e) {} applyTheme(t); };
 
 // ---------------------------------------------------------------- start

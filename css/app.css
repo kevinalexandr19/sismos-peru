@@ -318,7 +318,8 @@ footer a{color:inherit}
 .pf-range input[type=range]::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:14px;height:18px;border-radius:4px;background:var(--accent);border:2px solid var(--panel);cursor:ew-resize}
 .pf-range input[type=range]::-moz-range-thumb{pointer-events:auto;width:12px;height:16px;border-radius:4px;background:var(--accent);border:2px solid var(--panel);cursor:ew-resize}
 .pf-range input[type=range]::-webkit-slider-runnable-track{background:transparent}
-.pf-dates{grid-column:4;display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pf-dates{grid-column:4;position:relative;height:15px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pf-dates span{position:absolute;top:0;white-space:nowrap;font-weight:600;color:var(--ink)}
 
 
 /* Slab2 contour labels */
@@ -342,16 +343,24 @@ footer a{color:inherit}
   .prof-time{grid-template-columns:auto 1fr auto;grid-template-rows:auto auto auto;padding:6px 8px 8px;gap:4px 8px}
   .prof-time .pf-play{width:44px;height:36px}
   .prof-time select{font-size:16px}
-  .pf-range{grid-column:1 / -1;height:34px}
+  .pf-range{grid-column:1 / -1;height:38px}
   .pf-range input[type=range]::-webkit-slider-thumb{width:22px;height:26px}
   .pf-range input[type=range]::-moz-range-thumb{width:20px;height:24px}
   .pf-range input[type=range]{height:26px;top:10px}
   .pf-dates{grid-column:1 / -1}
   .modal .box{padding:14px}
-  .pf-dates{display:flex;justify-content:space-between}
   /* map tools in one row under the ☰ button (the vertical column does not fit next to the profile) */
   .toolbar{flex-direction:row;gap:5px}
   #mapwrap .leaflet-top.leaflet-right{top:104px}
+  /* smaller text so labels do not collide on small screens */
+  .prof-title{font-size:12px}
+  #latest .t{font-size:11px}
+  #latest .t b{font-weight:600}
+  .city-main{font-size:10px}
+  .city-sec,.dep-label,.volc-label{font-size:9px}
+  .dep-label{letter-spacing:.4px}
+  .slab-label{font-size:9px}
+  .pf-dates{font-size:10.5px;height:14px}
 }
 
 /* phones held horizontally: map | profile side by side */
@@ -365,8 +374,12 @@ footer a{color:inherit}
   /* compact timeline: play + mode + speed, then the range slider and its dates */
   .prof-time{padding:3px 6px 4px;gap:2px 6px}
   .prof-time .pf-play{width:36px;height:30px}
-  .prof-time select{font-size:14px;padding:2px 4px}
-  .pf-range{height:30px}
-  .pf-dates{font-size:10.5px}
+  .prof-time select{font-size:13px;padding:2px 4px}
+  .pf-range{height:36px}
+  .pf-dates{font-size:10px}
+  .prof-title{font-size:11px}
+  #latest{left:54px;max-width:calc(100% - 64px)}
+  #latest .m{font-size:13px;min-width:30px;padding:2px 4px}
+  #latest .t{font-size:10px;line-height:1.25}
   .leaflet-top.leaflet-left{top:46px}
 }

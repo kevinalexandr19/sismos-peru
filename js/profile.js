@@ -338,11 +338,24 @@ function updateTime(silent){
   $("#pf-t0").value = vAt(P.t0); $("#pf-t1").value = vAt(P.t1);
   const [a, b] = curWindow();
   $("#pf-d0").textContent = A.fmtDate(a); $("#pf-d1").textContent = A.fmtDate(b);
+  placeDates(a, b);
   drawHist(); draw(); scheduleMapSync();
   if (!silent) syncUrl();
 }
 $("#pf-t0").oninput = e => { P.t0 = Math.min(tAt(+e.target.value), P.t1 - A.DAY); updateTime(); };
 $("#pf-t1").oninput = e => { P.t1 = Math.max(tAt(+e.target.value), P.t0 + A.DAY); updateTime(); };
+// keep each date under its end of the interval, never overlapping each other or leaving the bar
+function placeDates(a, b){
+  const box = $(".pf-dates"), d0 = $("#pf-d0"), d1 = $("#pf-d1"), W = box.clientWidth; if (!W) return;
+  const th = A.isPhone() ? 22 : 14, xOf = t => Math.max(0, Math.min(1, vAt(t) / 1000)) * (W - th) + th / 2;
+  const w0 = d0.offsetWidth, w1 = d1.offsetWidth, gap = 8;
+  let l0 = Math.max(0, Math.min(W - w0, xOf(a) - w0 / 2)), l1 = Math.max(0, Math.min(W - w1, xOf(b) - w1 / 2));
+  if (l0 + w0 + gap > l1){                                  // too close: split around the midpoint, then keep inside
+    const mid = (l0 + w0 + l1) / 2; l0 = mid - w0 - gap / 2; l1 = mid + gap / 2;
+    if (l0 < 0){ l1 -= l0; l0 = 0; } if (l1 + w1 > W){ l0 -= l1 + w1 - W; l1 = W - w1; }
+  }
+  d0.style.left = l0 + "px"; d1.style.left = l1 + "px";
+}
 let raf = null, last = 0;
 function togglePlay(on){
   P.playing = on; $("#pf-play").textContent = on ? "❚❚" : "▶"; $("#pf-play").title = on ? "Pausar" : "Reproducir";
@@ -446,6 +459,7 @@ function draw(target){
   const g = c.getContext("2d"); g.setTransform(target ? target.__scale : dpr, 0, 0, target ? target.__scale : dpr, 0, 0);
   if (target && target.__w) g.clearRect(0, 0, W, H);
   const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const S = target && target.__w ? 1 : W < 460 ? .8 : W < 620 ? .88 : 1, fz = n => +(n * S).toFixed(1);   // smaller text on phones
   // legend: always the complete set of symbols, whatever is visible (stable while animating)
   const leg = {rows:[]};
   const R_ = (k, t, extra) => leg.rows.push({k, t, ...(extra || {})});
@@ -460,7 +474,7 @@ function draw(target){
       "Volcán activo":"Volcán act.", "Volcán pot. activo":"Volcán pot.", "Ciudad principal":"Ciudad", "Ciudad secundaria":"Poblado", "Falla (cruce)":"Falla", "Tamaño ∝ magnitud":"Tamaño ∝ M", "Fuera del modelo":"Fuera"};
     leg.rows.forEach(r => { if (SHORT[r.t]) r.t = SHORT[r.t]; });
   }
-  g.font = `11px ${F}`;
+  g.font = `${fz(11)}px ${F}`;
   const entryW = r => g.measureText(r.t).width + (r.k === "title" || r.k === "note" ? 4 : 18);
   const colW = Math.max(...leg.rows.map(entryW));
   const rowH = r => r.k === "title" ? 17 : 15;
@@ -469,10 +483,10 @@ function draw(target){
   if (leg.horizontal){
     // flow entries left to right; a title always starts a new line
     // continuous flow (titles do not force a line break; extra space before them) to keep the legend short
-    g.font = `10.5px ${F}`;
+    g.font = `${fz(10.5)}px ${F}`;
     let x = 0, lines = 1; const avail = W - 20;
     leg.rows.forEach(r => { const w = entryW(r) + (r.k === "title" && x > 0 ? 22 : 10); if (x + w > avail && x > 0){ lines++; x = 0; } r._line = lines - 1; r._x = x + (r.k === "title" && x > 0 ? 12 : 0); x += w; });
-    leg.h = lines * 14 + 6;
+    leg.h = lines * 14 * S + 6;
     lay = layout(W, H, 0, leg.h);
   } else {
     // groups = a title and its entries; a group is never split between columns
@@ -499,14 +513,14 @@ function draw(target){
   if (P.topo){ const v = [...P.topo.elev].filter(x => !isNaN(x)); if (v.length){ eMin = Math.min(-200, Math.min(...v)); eMax = Math.max(500, Math.max(...v)); } }
   const padE = (eMax - eMin) * .12, Yt = e => m.t + (eMax + padE - e) / (eMax + padE - eMin) * topoH;
   // grid + axes (depth panel)
-  g.font = `11px ${F}`; g.textBaseline = "middle"; g.lineWidth = 1;
+  g.font = `${fz(11)}px ${F}`; g.textBaseline = "middle"; g.lineWidth = 1;
   const ds = niceStep(dmax, 6);
   for (let d = 0; d <= dmax + 1e-6; d += ds){ g.strokeStyle = T.grid; g.beginPath(); g.moveTo(m.l, Y(d)); g.lineTo(m.l + plotW, Y(d)); g.stroke(); g.fillStyle = T.muted; g.textAlign = "right"; g.fillText(nf(d), m.l - 6, Y(d)); }
   const xs = niceStep(P.L, Math.max(3, Math.floor(plotW / 90)));
   g.textAlign = "center"; g.textBaseline = "top";
   for (let k = 0; k <= P.L + 1e-6; k += xs){ g.strokeStyle = T.grid; g.beginPath(); g.moveTo(X(k), y0); g.lineTo(X(k), y0 + plotH); g.stroke(); g.fillStyle = T.muted; g.fillText(nf(k), X(k), y0 + plotH + 4); }
   g.strokeStyle = T.axis; g.strokeRect(m.l + .5, y0 + .5, plotW, plotH);
-  g.fillStyle = T.muted; g.textAlign = "right"; g.fillText(`Distancia desde A (km) · exageración vertical ${veEff >= 1.95 ? Math.round(veEff) : veEff.toFixed(1)}:1`, m.l + plotW, y0 + plotH + 17);
+  g.fillStyle = T.muted; g.textAlign = "right"; g.fillText(`Distancia desde A (km) · exageración vertical ${veEff >= 1.95 ? Math.round(veEff) : veEff.toFixed(1)}:1`, m.l + plotW, y0 + plotH + 4 + 13 * S);
   g.save(); g.translate(13, y0 + plotH / 2); g.rotate(-Math.PI / 2); g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("Profundidad (km)", 0, 0); g.restore();
   // topography panel
   g.save(); g.beginPath(); g.rect(m.l, m.t, plotW, topoH); g.clip();
@@ -524,13 +538,13 @@ function draw(target){
   } else { g.fillStyle = T.muted; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("Cargando topografía…", m.l + plotW / 2, m.t + topoH / 2); }
   g.restore();
   g.strokeStyle = T.axis; g.lineWidth = 1; g.strokeRect(m.l + .5, m.t + .5, plotW, topoH);
-  g.fillStyle = T.muted; g.textAlign = "right"; g.textBaseline = "middle"; g.font = `10px ${F}`;
+  g.fillStyle = T.muted; g.textAlign = "right"; g.textBaseline = "middle"; g.font = `${fz(10)}px ${F}`;
   if (P.topo){
     const used = [];
     [0, eMax, eMin].forEach(e => { const y = Yt(e); if (used.some(u => Math.abs(u - y) < 12) || Math.abs(y - y0) < 9) return; used.push(y); g.fillText(`${e === 0 ? "0" : nf(e / 1000, 1)} km`, m.l - 6, y); });
   }
   // A / A′ labels
-  g.font = `700 13px ${F}`; g.fillStyle = T.ink; g.textBaseline = "bottom";
+  g.font = `700 ${fz(13)}px ${F}`; g.fillStyle = T.ink; g.textBaseline = "bottom";
   g.textAlign = "left"; g.fillText("A", m.l, m.t - 2); g.textAlign = "right"; g.fillText("A′", m.l + plotW, m.t - 2);
 
   // Slab2: uncertainty band around the slab top, slab top (solid) and bottom (dashed)
@@ -550,8 +564,8 @@ function draw(target){
     g.restore();
     const shallowest = Math.min(...sp.filter(p => !isNaN(p.top)).map(p => p.top));
     if (shallowest > dmax){
-      g.font = `italic 11px ${F}`; g.textAlign = "center"; g.textBaseline = "bottom"; g.fillStyle = col;
-      g.fillText(`La placa de Nazca (Slab2) está a más de ${nf(dmax)} km en este corte: use la exageración vertical «Auto» o una menor para verla.`, m.l + plotW / 2, y0 + plotH - 6);
+      g.font = `italic ${fz(11)}px ${F}`; g.textAlign = "center"; g.textBaseline = "top"; g.fillStyle = col;
+      g.fillText(`La placa de Nazca (Slab2) está a más de ${nf(dmax)} km en este corte: use la exageración vertical «Auto» o una menor para verla.`, m.l + plotW / 2, y0 + 6);
     }
   }
   // fault crossings: surface tick + apparent dip down to 20 km (typical crustal seismogenic depth),
@@ -595,7 +609,7 @@ function draw(target){
     const x = X(v.at), y = Yt(elevAt(v.at)) - 6, s = 13, act = v.p.estado === "Activo", col = A.VOLC_COLORS[v.p.peligrosidad];
     g.beginPath(); g.moveTo(x, y - s * .55); g.lineTo(x + s * .5, y + s * .4); g.lineTo(x - s * .5, y + s * .4); g.closePath();
     g.fillStyle = act ? col : "#fff"; g.fill(); g.lineWidth = act ? 1.2 : 2.4; g.strokeStyle = act ? "#1a1a1a" : col; g.stroke();
-    label(v.p.nombre.replace("Campo volcánico monogenético ", "CVM "), x, y - 11, `italic 650 10.5px ${F}`, A.theme === "dark" ? "#ffb199" : "#7a1b0c");
+    label(v.p.nombre.replace("Campo volcánico monogenético ", "CVM "), x, y - 11, `italic 650 ${fz(10.5)}px ${F}`, A.theme === "dark" ? "#ffb199" : "#7a1b0c");
     P.hits.push({x, y, r:9, kind:"volcan", v});
   });
   [...P.cities].sort((a, b) => b.main - a.main).forEach(ci => {
@@ -608,15 +622,17 @@ function draw(target){
   if (P.showSlab && P.slabProf && P._slabLabelRun && P._slabLabelRun.length > 10){
     const r = P._slabLabelRun, p = r[Math.floor(r.length * .55)], col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
     g.save(); g.beginPath(); g.rect(m.l, y0, plotW, plotH); g.clip();
-    g.font = `italic 650 11px ${F}`; g.textAlign = "left"; g.textBaseline = "top"; g.lineWidth = 3.5; g.strokeStyle = T.halo; g.lineJoin = "round";
-    g.strokeText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6); g.fillStyle = col; g.fillText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6);
+    g.font = `italic 650 ${fz(11)}px ${F}`; g.textAlign = "left"; g.textBaseline = "top"; g.lineWidth = 3.5; g.strokeStyle = T.halo; g.lineJoin = "round";
+    const st = "Placa de Nazca (Slab2)", sw = g.measureText(st).width; let sx = X(p.at) + 6;
+    if (sx + sw > m.l + plotW - 4) sx = Math.max(m.l + 4, m.l + plotW - 4 - sw);
+    g.strokeText(st, sx, Y(p.top) + 6); g.fillStyle = col; g.fillText(st, sx, Y(p.top) + 6);
     g.restore();
   }
   // legend: to the right of the plot (desktop) or under it (narrow panels); never over the data
   {
     const col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
     const entry = (r, bx, cy, small) => {
-      const fs = small ? 10.5 : 11;
+      const fs = fz(small ? 10.5 : 11);
       g.font = r.k === "title" ? `700 ${fs}px ${F}` : `${fs}px ${F}`; g.fillStyle = r.k === "note" ? T.muted : T.ink; g.textAlign = "left"; g.textBaseline = "middle";
       const tx = bx + 18;
       if (r.k === "dot"){ g.beginPath(); g.arc(bx + 6, cy, 4.5, 0, 2 * Math.PI); g.fillStyle = r.c; g.fill(); g.strokeStyle = T.stroke; g.lineWidth = .8; g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, tx, cy); }
@@ -631,7 +647,7 @@ function draw(target){
     };
     if (leg.horizontal){
       const yTop = H - leg.h + 2;
-      leg.rows.forEach(r => entry(r, 10 + r._x, yTop + r._line * 14 + 7, true));
+      leg.rows.forEach(r => entry(r, 10 + r._x, yTop + r._line * 14 * S + 7 * S, true));
     } else {
       const x0 = m.l + plotW + 14, yTop = y0 + 2;
       leg.cols.forEach((col, c) => {
@@ -640,10 +656,11 @@ function draw(target){
       });
     }
   }
-  // time label while playing
-  if ((P.playing || P.mode !== "acum") && !(target && target.__w)){        // video frames show the date in their header
-    g.font = `700 13px ${F}`; g.textAlign = "right"; g.textBaseline = "top"; g.fillStyle = T.ink;
-    g.fillText(P.mode === "acum" ? `hasta ${A.fmtDate(tb)}` : `${A.fmtDate(ta)} – ${A.fmtDate(tb)}`, m.l + plotW - 6, y0 + 6);
+  // dates shown in the profile: bottom-left corner of the depth panel (video frames show them in their header)
+  if (!(target && target.__w)){
+    g.font = `700 ${fz(13)}px ${F}`; g.textAlign = "left"; g.textBaseline = "bottom"; g.lineJoin = "round";
+    const dt = `${A.fmtDate(ta)} – ${A.fmtDate(tb)}`;
+    g.lineWidth = 4; g.strokeStyle = T.halo; g.strokeText(dt, m.l + 6, y0 + plotH - 5); g.fillStyle = T.ink; g.fillText(dt, m.l + 6, y0 + plotH - 5);
   }
   // info line
   if (!target) $("#pf-info").textContent = `· ${nf(P.L)} km · franja ${nf(P.width)} km · ${nf(vis.length)} de ${nf(P.ev.length)} sismos M ≥ ${P.magMin.toFixed(1)} · ${P.faults.length} cruces de fallas · ${P.volcs.length} volcanes`;
@@ -653,6 +670,7 @@ function draw(target){
 // ------------------------------------------------------------ histogram under the time slider
 function drawHist(){
   const box = hcv.getBoundingClientRect(); if (!box.width || !P.open) return;
+  placeDates(...curWindow());
   const dpr = window.devicePixelRatio || 1, W = box.width, H = box.height;
   hcv.width = W * dpr; hcv.height = H * dpr; const g = hcv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const t0 = catStart(), t1 = Date.now(), nb = Math.max(12, Math.floor(W / 6)), bins = new Array(nb).fill(0);

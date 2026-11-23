@@ -32,7 +32,10 @@ aside>footer{flex:0 0 auto}
 #map{min-height:0;background:#dfe6ea}
 
 /* filters */
-.filters{padding:10px 14px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.filters{padding:10px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
+.row{min-width:0}
+.seg{min-width:0}
+.seg button{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row{display:flex;gap:6px;align-items:center}
 .row>label{font-size:12px;color:var(--muted);min-width:82px}
 select,input[type=search],input[type=date]{font:inherit;font-size:13px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);flex:1;min-width:0}
@@ -160,11 +163,31 @@ footer a{color:inherit}
 .brand-btns{display:flex;gap:6px}
 #close-panel{display:none}
 #backdrop{display:none}
-#pf-opts{display:none}
-@media (max-width:820px){
+#pf-opts,#pf-rotate{display:none}
+@media (max-width:820px), (max-height:540px) and (orientation:landscape) and (pointer:coarse){
   html,body{height:100%;height:100dvh;overscroll-behavior:none}
   main{grid-template-columns:minmax(0,1fr)}
   #close-panel{display:block}
+  /* compact filter panel: narrower and denser so the map stays visible beside it */
+  .brand{padding:8px 10px 8px 12px}
+  .brand h1{font-size:15px}
+  #updated{font-size:11px}
+  .brand .theme-btn{width:32px;height:30px;font-size:15px}
+  .filters{padding:8px 10px;gap:5px}
+  .row>label{min-width:68px;font-size:11.5px}
+  #periodlabel{padding-left:74px;font-size:11.5px}
+  aside select,aside input[type=search]{padding:4px 6px;height:34px}
+  aside .seg button{padding:6px 2px;font-size:12.5px}
+  .tabs button{padding:7px 4px;font-size:13px}
+  .stats{padding:6px 10px;gap:6px}
+  .stat .v{font-size:16px}
+  .listhead{padding:5px 10px}
+  .ev{grid-template-columns:38px 1fr;gap:8px;padding:8px 10px}
+  .ev .mag{height:30px;font-size:14px}
+  .ev .ref{font-size:13px}
+  .ev .meta{font-size:11.5px}
+  #statsbody{padding:2px 10px 14px}
+  footer{padding:5px 10px}
   body.panel-open #backdrop{display:block;position:absolute;inset:0;z-index:1090;background:rgba(0,0,0,.35)}
   /* larger touch targets; 16 px inputs avoid the automatic zoom of iOS */
   select,input[type=search],input[type=date],input[type=text]{font-size:16px;padding:7px 8px}
@@ -175,7 +198,7 @@ footer a{color:inherit}
   .leaflet-popup-content{min-width:0;max-width:calc(100vw - 90px)}
   .ev{padding:11px 14px}
   #prof-hint{max-width:calc(100vw - 30px);top:58px;font-size:13px}
-  aside{position:absolute;z-index:1100;top:0;bottom:0;left:0;width:min(400px,94vw);transform:translateX(-102%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.25)}
+  aside{position:absolute;z-index:1100;top:0;bottom:0;left:0;width:min(320px,84vw);transform:translateX(-102%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.25)}
   aside.open{transform:none}
   #toggle-panel{display:block}
   #latest{left:58px;right:10px;transform:none;max-width:none;padding:4px 8px 4px 4px}
@@ -304,12 +327,12 @@ footer a{color:inherit}
 .hide-dep .slab-label{display:none}
 
 /* phones: cross-section panel (kept at the end so it overrides the general panel rules) */
-@media (max-width:820px){
+@media (max-width:820px), (max-height:540px) and (orientation:landscape) and (pointer:coarse){
   /* cross-section panel: compact header, options behind ⚙, two-row timeline */
   .prof{height:64vh;height:64dvh;min-height:0}
   .prof-h{padding:6px 8px}
   .prof-title>div:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #pf-opts{display:block}
+  #pf-opts,#pf-rotate{display:block}
   .prof-wbtn button{width:36px;height:32px;font-size:16px}
   .prof .prof-ctrls{display:none;gap:8px 12px;font-size:13px;padding-top:6px}
   .prof.opts-open .prof-ctrls{display:flex}
@@ -329,4 +352,21 @@ footer a{color:inherit}
   /* map tools in one row under the ☰ button (the vertical column does not fit next to the profile) */
   .toolbar{flex-direction:row;gap:5px}
   #mapwrap .leaflet-top.leaflet-right{top:104px}
+}
+
+/* phones held horizontally: map | profile side by side */
+@media (max-height:540px) and (orientation:landscape) and (pointer:coarse){
+  main:has(.prof:not(.hidden)){grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  main:has(.prof:not(.hidden)) #mapwrap{grid-column:1;grid-row:1}
+  .prof{grid-column:2;grid-row:1;height:auto;min-height:0;border-top:0;border-left:1px solid var(--line);box-shadow:-3px 0 12px rgba(0,0,0,.15)}
+  .prof.min{align-self:start}
+  .prof-h{padding:4px 6px}
+  .prof-wbtn button{width:32px;height:28px}
+  /* compact timeline: play + mode + speed, then the range slider and its dates */
+  .prof-time{padding:3px 6px 4px;gap:2px 6px}
+  .prof-time .pf-play{width:36px;height:30px}
+  .prof-time select{font-size:14px;padding:2px 4px}
+  .pf-range{height:30px}
+  .pf-dates{font-size:10.5px}
+  .leaflet-top.leaflet-left{top:46px}
 }

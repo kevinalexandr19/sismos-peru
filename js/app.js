@@ -70,7 +70,10 @@ const plateName = n => n.split(/[-\\/]/).map(c => PLATES[c] || c).join(" – ");
 Object.assign(APP, {DEPTH_COLORS, AGE_COLORS, colorOf, depthColor, radiusOf, FAULT_STYLE, ROAD_STYLE});
 
 // ---------------------------------------------------------------- map & layers
-const map = APP.map = L.map("map", {preferCanvas:true, worldCopyJump:true, zoomSnap:.5, zoomControl:innerWidth >= 820, tap:true}).setView([-9.3,-75.5], innerWidth < 820 ? 4.5 : 5);
+// "phone" = narrow screen, or a short touch screen held horizontally (same rule as the CSS)
+const PHONE_MQ = matchMedia("(max-width:820px), (max-height:540px) and (orientation:landscape) and (pointer:coarse)");
+APP.isPhone = () => PHONE_MQ.matches;
+const map = APP.map = L.map("map", {preferCanvas:true, worldCopyJump:true, zoomSnap:.5, zoomControl:!APP.isPhone(), tap:true}).setView([-9.3,-75.5], APP.isPhone() ? 4.5 : 5);
 const tileOpts = {crossOrigin:"anonymous"};          // needed to export the basemap to PNG
 const BASES = APP.BASES = {
   topo:{name:"Relieve (Esri)", layer:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",{...tileOpts,maxZoom:18,attribution:"Tiles © Esri"}), credit:"Esri World Topo"},
@@ -213,7 +216,7 @@ function setWin(k, open){
   document.querySelector(".toolbar [data-all] .tx").textContent = anyOpen ? "Ocultar todo" : "Mostrar todo";
   try { localStorage.setItem("win-" + k, open ? "1" : "0"); } catch (e) {}
 }
-const small = innerWidth < 820 || map.getSize().x < 760;   // narrow map: windows start closed (the choice is remembered)
+const small = APP.isPhone() || map.getSize().x < 760;   // narrow map: windows start closed (the choice is remembered)
 Object.keys(WINS).forEach(k => {
   let saved = null; try { saved = localStorage.getItem("win-" + k); } catch (e) {}
   setWin(k, saved != null ? saved === "1" : !small);
@@ -529,7 +532,7 @@ function drawList(){
     + (v.length > shown ? `<button id="more">Mostrar más (${nf(v.length - shown)} restantes)</button>` : "");
   const more = $("#more"); if (more) more.onclick = () => { shown += 300; drawList(); };
 }
-$("#list").addEventListener("click", ev => { const d = ev.target.closest(".ev"); if (d){ select(d.dataset.id, true); if (innerWidth < 820) setPanel(false); } });
+$("#list").addEventListener("click", ev => { const d = ev.target.closest(".ev"); if (d){ select(d.dataset.id, true); if (APP.isPhone()) setPanel(false); } });
 $("#list").addEventListener("mouseover", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k){ k.m.setStyle({weight:2.5, color:APP.theme === "dark" ? "#fff" : "#000"}); k.m.bringToFront(); } });
 $("#list").addEventListener("mouseout", ev => { const d = ev.target.closest(".ev"); const k = d && markers.get(d.dataset.id); if (k) k.m.setStyle({weight:.7, color:"#2b2b2b"}); });
 

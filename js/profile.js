@@ -129,7 +129,7 @@ panel.id = "profile"; panel.className = "prof hidden";
 panel.innerHTML = `
   <div class="prof-h">
     <div class="prof-title"><div><b>Perfil A–A′</b> <span id="pf-info"></span></div>
-      <div class="prof-wbtn"><button id="pf-opts" title="Mostrar u ocultar las opciones del perfil" aria-label="Opciones del perfil" aria-expanded="false">⚙</button><button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button><button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button></div></div>
+      <div class="prof-wbtn"><button id="pf-rotate" title="Pantalla completa en horizontal: mapa a la izquierda, perfil a la derecha" aria-label="Ver en horizontal">⟲</button><button id="pf-opts" title="Mostrar u ocultar las opciones del perfil" aria-label="Opciones del perfil" aria-expanded="false">⚙</button><button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button><button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button></div></div>
     <div class="prof-ctrls">
       <label title="Ancho total de la franja">Ancho <input type="range" id="pf-width" min="0" max="100"><span id="pf-wval"></span></label>
       <label>M ≥ <select id="pf-mag"><option>4.5</option><option>5.0</option><option>5.5</option><option>6.0</option><option>6.5</option></select></label>
@@ -168,6 +168,7 @@ const cv = $("#pf-canvas"), tip = $("#pf-tip"), hcv = $("#pf-hist");
 function openProfile(a, b, width){
   P.A = a; P.B = b; if (width) P.width = width;
   P.open = true; panel.classList.remove("hidden", "min"); map.invalidateSize();
+  if (A.isPhone() && matchMedia("(orientation:portrait)").matches && !sessionStorage.getItem("rotTip")){ sessionStorage.setItem("rotTip", "1"); setTimeout(() => A.toast("Consejo: gira el teléfono para ver el mapa y el perfil lado a lado (botón ⟲)."), 900); }
   ov.addTo(map); mA.addTo(map); mB.addTo(map);
   if (P.t0 == null){ P.t0 = catStart(); P.t1 = Date.now(); }
   $("#pf-width").value = w2s(P.width);
@@ -184,6 +185,23 @@ function closePanel(keepLine){
   setSync(false); syncUrl(true);
 }
 $("#pf-close").onclick = () => closePanel(false);
+// Phones: fullscreen + landscape lock where the browser allows it (Android); otherwise ask to rotate (iOS)
+$("#pf-rotate").onclick = async () => {
+  const landscape = matchMedia("(orientation:landscape)").matches;
+  if (document.fullscreenElement){ try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); await document.exitFullscreen(); } catch (e) {} return; }
+  try {
+    if (!document.documentElement.requestFullscreen || !screen.orientation || !screen.orientation.lock) throw new Error("no soportado");
+    await document.documentElement.requestFullscreen({navigationUI:"hide"});
+    await screen.orientation.lock("landscape");
+  } catch (e){
+    if (document.fullscreenElement && !landscape) { try { await document.exitFullscreen(); } catch (_) {} }
+    if (!landscape) A.toast("Gira el teléfono a horizontal: el mapa quedará a la izquierda y el perfil a la derecha.");
+  }
+};
+const relayout = () => setTimeout(() => { map.invalidateSize(); if (P.open){ draw(); drawHist(); } }, 250);
+window.addEventListener("orientationchange", relayout);
+document.addEventListener("fullscreenchange", relayout);
+matchMedia("(orientation:landscape)").addEventListener && matchMedia("(orientation:landscape)").addEventListener("change", relayout);
 $("#pf-opts").onclick = () => { const on = panel.classList.toggle("opts-open"); $("#pf-opts").setAttribute("aria-expanded", on); setTimeout(() => { draw(); drawHist(); }, 30); };
 $("#pf-min").onclick = () => { panel.classList.toggle("min"); $("#pf-min").textContent = panel.classList.contains("min") ? "▢" : "–"; map.invalidateSize(); setTimeout(draw, 50); };
 $("#pf-width").oninput = e => { P.width = s2w(+e.target.value); drawOverlay(); recompute(false); };

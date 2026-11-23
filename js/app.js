@@ -182,19 +182,19 @@ function makeWin(id, title, position){
   return ctl;
 }
 const WINS = APP.WINS = {
-  layers:{ctl:null, title:"Capas", icon:"▤"},
-  legend:{ctl:null, title:"Leyenda", icon:"◐"},
-  summary:{ctl:null, title:"Resumen", icon:"Σ"}
+  layers:{ctl:null, title:"Capas", icon:'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5z"/><path d="m2 13 10 5 10-5"/><path d="m2 18 10 5 10-5" opacity=".55"/></svg>'},
+  legend:{ctl:null, title:"Leyenda", icon:'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="18" r="1.6" fill="currentColor"/><path d="M10 6h10M10 12h10M10 18h10"/></svg>'},
+  summary:{ctl:null, title:"Resumen", icon:'<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 17v-5M11 17V6M16 17v-8M21 17v-3"/></svg>'}
 };
 // toolbar first so it sits under the zoom buttons
 const toolbar = L.control({position:"topleft"});
 toolbar.onAdd = () => {
   const d = L.DomUtil.create("div", "toolbar");
   L.DomEvent.disableClickPropagation(d);
-  d.innerHTML = Object.entries(WINS).map(([k, w]) => `<button data-win="${k}" title="Mostrar/ocultar ${w.title.toLowerCase()}">${w.icon} <span class="tx">${w.title}</span></button>`).join("")
-    + `<button data-all="1" title="Ocultar o mostrar todas las ventanas">◻ <span class="tx">Ocultar todo</span></button>`
-    + `<button data-profile="1" title="Trazar un corte vertical (perfil de sismos en profundidad)">⟋ <span class="tx">Perfil</span></button>`
-    + `<button data-export="1" class="primary" title="Descargar la vista actual como imagen">⤓ <span class="tx">PNG</span></button>`;
+  d.innerHTML = Object.entries(WINS).map(([k, w]) => `<button data-win="${k}" title="Mostrar u ocultar la ventana ${w.title.toLowerCase()}">${w.icon}<span class="tx">${w.title}</span><span class="txs">${w.title}</span></button>`).join("")
+    + `<button data-all="1" title="Ocultar o mostrar todas las ventanas flotantes"><span class="ic-all"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.1 6.6C3.6 8.3 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></span><span class="tx">Ocultar todo</span><span class="txs">Ocultar</span></button>`
+    + `<button data-profile="1" title="Trazar un corte vertical A–A′ (perfil de sismos en profundidad): dos clics en el mapa"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 20 6"/><circle cx="4" cy="18" r="2.4" fill="currentColor"/><circle cx="20" cy="6" r="2.4" fill="currentColor"/><path d="M8 7l3 2M14 15l3 2" opacity=".55"/></svg><span class="tx">Trazar perfil</span><span class="txs">Perfil</span></button>`
+    + `<button data-export="1" class="primary" title="Descargar la vista actual del mapa como imagen PNG"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/></svg><span class="tx">Descargar PNG</span><span class="txs">PNG</span></button>`;
   d.addEventListener("click", ev => {
     const b = ev.target.closest("button"); if (!b) return;
     if (b.dataset.win) setWin(b.dataset.win, !WINS[b.dataset.win].open);
@@ -214,6 +214,8 @@ function setWin(k, open){
   const b = document.querySelector(`.toolbar [data-win="${k}"]`); if (b) b.classList.toggle("off", !open);
   const anyOpen = Object.values(WINS).some(x => x.open);
   document.querySelector(".toolbar [data-all] .tx").textContent = anyOpen ? "Ocultar todo" : "Mostrar todo";
+  document.querySelector(".toolbar [data-all] .txs").textContent = anyOpen ? "Ocultar" : "Mostrar";
+  document.querySelector(".toolbar [data-all] .ic-all").innerHTML = anyOpen ? '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.1 6.6C3.6 8.3 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>' : '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   try { localStorage.setItem("win-" + k, open ? "1" : "0"); } catch (e) {}
 }
 const small = APP.isPhone() || map.getSize().x < 760;   // narrow map: windows start closed (the choice is remembered)

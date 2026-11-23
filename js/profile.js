@@ -83,7 +83,16 @@ function onDrag(){
   dragRaf = requestAnimationFrame(() => { dragRaf = null; drawOverlay(); recompute(false); draw(); });
 }
 mA.on("drag", onDrag); mB.on("drag", onDrag);
-mA.on("dragend", () => { recompute(true); }); mB.on("dragend", () => { recompute(true); });
+mA.on("dragend", () => { setPicking(false); recompute(true); }); mB.on("dragend", () => { setPicking(false); recompute(true); });
+mA.on("dragstart", () => setPicking(true)); mB.on("dragstart", () => setPicking(true));
+// while the section is being traced or an end is dragged, the other map elements ignore hover and clicks
+function setPicking(on){
+  map.getContainer().classList.toggle("picking", on);
+  if (!on) return;
+  map.closePopup();
+  try { if (A.renderer._hoveredLayer) A.renderer._handleMouseOut(new MouseEvent("mouseout")); } catch (e) {}
+  map.eachLayer(l => { const t = l.getTooltip && l.getTooltip(); if (t && !t.options.permanent && l.isTooltipOpen()) l.closeTooltip(); });
+}
 
 // ------------------------------------------------------------ drawing mode
 let drawing = null;
@@ -91,7 +100,7 @@ A.startProfile = function(){
   if (drawing) return cancelDraw();
   closePanel(true);
   drawing = {stage:0, tmp:L.polyline([], {renderer:A.renderer, color:"#b8321f", weight:2, dashArray:"6 4", interactive:false}).addTo(map)};
-  map.getContainer().classList.add("drawing");
+  map.getContainer().classList.add("drawing"); setPicking(true);
   map.doubleClickZoom.disable();
   setHint("Haz clic en el mapa para el punto <b>A</b> (Esc para cancelar)");
 };
@@ -99,7 +108,7 @@ function setHint(html){ let h = $("#prof-hint"); if (!h){ h = document.createEle
 function cancelDraw(){
   if (!drawing) return;
   drawing.tmp.remove(); if (drawing.mk) drawing.mk.remove();
-  drawing = null; map.getContainer().classList.remove("drawing"); map.doubleClickZoom.enable(); setHint("");
+  drawing = null; map.getContainer().classList.remove("drawing"); setPicking(false); map.doubleClickZoom.enable(); setHint("");
 }
 map.on("click", ev => {
   if (!drawing) return;
@@ -129,7 +138,7 @@ panel.id = "profile"; panel.className = "prof hidden";
 panel.innerHTML = `
   <div class="prof-h">
     <div class="prof-title"><div><b>Perfil A–A′</b> <span id="pf-info"></span></div>
-      <div class="prof-wbtn"><button id="pf-rotate" title="Pantalla completa en horizontal: mapa a la izquierda, perfil a la derecha" aria-label="Ver en horizontal">⟲</button><button id="pf-opts" title="Mostrar u ocultar las opciones del perfil" aria-label="Opciones del perfil" aria-expanded="false">⚙</button><button id="pf-min" title="Minimizar" aria-label="Minimizar perfil">–</button><button id="pf-close" title="Cerrar perfil" aria-label="Cerrar perfil">×</button></div></div>
+      <div class="prof-wbtn"><button id="pf-rotate" title="Pantalla completa en horizontal: mapa a la izquierda, perfil a la derecha" aria-label="Ver en horizontal"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="11" rx="2"/><path d="M8 3.5a6 6 0 0 1 8 0"/><path d="m16 1.5 0 2.4-2.4 0"/></svg><span class="lb">Girar</span></button><button id="pf-opts" title="Mostrar u ocultar las opciones del perfil" aria-label="Opciones del perfil" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span class="lb">Opciones</span></button><button id="pf-min" title="Minimizar el perfil" aria-label="Minimizar perfil"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg><span class="lb">Minimizar</span></button><button id="pf-close" title="Cerrar el perfil" aria-label="Cerrar perfil"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><span class="lb">Cerrar</span></button></div></div>
     <div class="prof-ctrls">
       <label title="Ancho total de la franja">Ancho <input type="range" id="pf-width" min="0" max="100"><span id="pf-wval"></span></label>
       <label>M ≥ <select id="pf-mag"><option>4.5</option><option>5.0</option><option>5.5</option><option>6.0</option><option>6.5</option></select></label>
@@ -168,7 +177,7 @@ const cv = $("#pf-canvas"), tip = $("#pf-tip"), hcv = $("#pf-hist");
 function openProfile(a, b, width){
   P.A = a; P.B = b; if (width) P.width = width;
   P.open = true; panel.classList.remove("hidden", "min"); map.invalidateSize();
-  if (A.isPhone() && matchMedia("(orientation:portrait)").matches && !sessionStorage.getItem("rotTip")){ sessionStorage.setItem("rotTip", "1"); setTimeout(() => A.toast("Consejo: gira el teléfono para ver el mapa y el perfil lado a lado (botón ⟲)."), 900); }
+  if (A.isPhone() && matchMedia("(orientation:portrait)").matches && !sessionStorage.getItem("rotTip")){ sessionStorage.setItem("rotTip", "1"); setTimeout(() => A.toast("Consejo: gira el teléfono para ver el mapa y el perfil lado a lado (botón «Girar»)."), 900); }
   ov.addTo(map); mA.addTo(map); mB.addTo(map);
   if (P.t0 == null){ P.t0 = catStart(); P.t1 = Date.now(); }
   $("#pf-width").value = w2s(P.width);
@@ -203,7 +212,7 @@ window.addEventListener("orientationchange", relayout);
 document.addEventListener("fullscreenchange", relayout);
 matchMedia("(orientation:landscape)").addEventListener && matchMedia("(orientation:landscape)").addEventListener("change", relayout);
 $("#pf-opts").onclick = () => { const on = panel.classList.toggle("opts-open"); $("#pf-opts").setAttribute("aria-expanded", on); setTimeout(() => { draw(); drawHist(); }, 30); };
-$("#pf-min").onclick = () => { panel.classList.toggle("min"); $("#pf-min").textContent = panel.classList.contains("min") ? "▢" : "–"; map.invalidateSize(); setTimeout(draw, 50); };
+$("#pf-min").onclick = () => { panel.classList.toggle("min"); { const mn = panel.classList.contains("min"); $("#pf-min").innerHTML = (mn ? '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>' : '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>') + `<span class="lb">${mn ? "Restaurar" : "Minimizar"}</span>`; $("#pf-min").title = mn ? "Restaurar el perfil" : "Minimizar el perfil"; } map.invalidateSize(); setTimeout(draw, 50); };
 $("#pf-width").oninput = e => { P.width = s2w(+e.target.value); drawOverlay(); recompute(false); };
 $("#pf-width").onchange = () => { syncUrl(); };
 $("#pf-mag").onchange = e => { P.magMin = +e.target.value; recompute(false); };
@@ -468,10 +477,10 @@ function draw(target){
   else { R_("title", "Profundidad"); A.DEPTH_COLORS.forEach(c => R_("dot", c[2], {c:c[1]})); }
   R_("note", "Tamaño ∝ magnitud");
   R_("title", "Placa de Nazca (Slab2)"); R_("top", "Techo de la placa"); R_("unc", "Incertidumbre"); R_("bot", "Base de la placa");
-  R_("title", "Superficie"); R_("vact", "Volcán activo"); R_("vpot", "Volcán pot. activo"); R_("cityM", "Ciudad principal"); R_("cityS", "Ciudad secundaria"); R_("fault", "Falla (cruce)");
+  R_("title", "Superficie"); R_("vact", "Volcán activo"); R_("vpot", "Volcán potencialmente activo"); R_("cityM", "Ciudad principal"); R_("cityS", "Ciudad secundaria"); R_("fault", "Falla (cruce)");
   if (W < 520){
     const SHORT = {"Ambiente (Slab2)":"Ambiente", "Profundidad":"Prof.", "Placa de Nazca (Slab2)":"Slab2", "Techo de la placa":"Techo", "Incertidumbre":"Incert.", "Base de la placa":"Base",
-      "Volcán activo":"Volcán act.", "Volcán pot. activo":"Volcán pot.", "Ciudad principal":"Ciudad", "Ciudad secundaria":"Poblado", "Falla (cruce)":"Falla", "Tamaño ∝ magnitud":"Tamaño ∝ M", "Fuera del modelo":"Fuera"};
+      "Ciudad principal":"Ciudad", "Ciudad secundaria":"Poblado", "Falla (cruce)":"Falla", "Tamaño ∝ magnitud":"Tamaño ∝ M", "Fuera del modelo":"Fuera"};
     leg.rows.forEach(r => { if (SHORT[r.t]) r.t = SHORT[r.t]; });
   }
   g.font = `${fz(11)}px ${F}`;

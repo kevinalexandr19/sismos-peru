@@ -114,10 +114,17 @@ footer a{color:inherit}
 .legend .sizes span{display:flex;flex-direction:column;align-items:center;font-size:10.5px;color:var(--muted)}
 .legend .sizes i{display:block;border-radius:50%;border:1px solid #555;background:#ccc}
 .toolbar{display:flex;flex-direction:column;gap:4px}
-.toolbar button{background:#fff;border:0;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.3);padding:6px 9px;font:inherit;font-size:12px;cursor:pointer;text-align:left;color:var(--ink);white-space:nowrap}
+.toolbar button{display:flex;align-items:center;gap:7px;background:#fff;border:0;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.3);padding:6px 10px 6px 8px;font:inherit;font-size:12px;cursor:pointer;text-align:left;color:var(--ink);white-space:nowrap}
 .toolbar button:hover{background:#f4f4f4}
 .toolbar button.off{color:#6b7280;background:#eceae6}
 .toolbar button.primary{background:var(--dark);color:#fff}
+.ic{width:16px;height:16px;flex:0 0 auto;display:block}
+.ic-all{display:contents}
+.toolbar .txs{display:none}
+/* tracing a section or dragging its ends: nothing else on the map reacts */
+.picking .leaflet-overlay-pane canvas,.picking .leaflet-overlay-pane svg,.picking .leaflet-marker-pane,.picking .leaflet-volcanoes-pane,.picking .leaflet-quakes-pane,.picking .leaflet-tooltip-pane{pointer-events:none!important}
+.picking .leaflet-volcanoes-pane *,.picking .leaflet-marker-pane *,.picking .leaflet-overlay-pane *{pointer-events:none!important}
+.picking .leaflet-tooltip:not(.lbl){display:none}
 .summary .big{font-size:13px;font-weight:650}
 
 /* popups and labels */
@@ -193,7 +200,8 @@ footer a{color:inherit}
   select,input[type=search],input[type=date],input[type=text]{font-size:16px;padding:7px 8px}
   input[type=range]{height:28px}
   .seg button{padding:8px 4px;font-size:14px}
-  .toolbar button{min-width:40px;min-height:38px;font-size:15px}
+  .toolbar button{flex-direction:column;justify-content:center;gap:2px;min-width:50px;min-height:44px;padding:4px 5px;font-size:9.5px;line-height:1.1;text-align:center}
+  .toolbar .ic{width:18px;height:18px}
   .win{max-width:calc(100vw - 70px)}
   .leaflet-popup-content{min-width:0;max-width:calc(100vw - 90px)}
   .ev{padding:11px 14px}
@@ -206,6 +214,7 @@ footer a{color:inherit}
   .leaflet-top.leaflet-left{top:46px}
   #mapwrap .leaflet-top.leaflet-right{top:58px}
   .toolbar button .tx{display:none}
+  .toolbar button .txs{display:block}
 }
 
 /* ---------------------------------------------------------------- theme button */
@@ -293,8 +302,10 @@ footer a{color:inherit}
 .prof-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .prof-title{font-size:13px;flex:1 1 100%;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .prof-wbtn{display:flex;gap:4px;flex:0 0 auto}
-.prof-wbtn button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;width:28px;height:24px;font:inherit;font-size:14px;line-height:1;cursor:pointer}
+.prof-wbtn button{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;width:28px;height:24px;font:inherit;font-size:14px;line-height:1;cursor:pointer}
 .prof-wbtn button:hover{background:var(--accent-soft)}
+.prof-wbtn .ic{width:14px;height:14px}
+.prof-wbtn .lb{display:none}
 .prof-title span{color:var(--muted)}
 .prof-ctrls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px}
 .prof-ctrls label{display:flex;align-items:center;gap:4px;white-space:nowrap}
@@ -334,7 +345,9 @@ footer a{color:inherit}
   .prof-h{padding:6px 8px}
   .prof-title>div:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #pf-opts,#pf-rotate{display:block}
-  .prof-wbtn button{width:36px;height:32px;font-size:16px}
+  .prof-wbtn button{flex-direction:column;gap:1px;width:auto;min-width:46px;height:38px;padding:2px 4px}
+  .prof-wbtn .ic{width:16px;height:16px}
+  .prof-wbtn .lb{display:block;font-size:9px;line-height:1}
   .prof .prof-ctrls{display:none;gap:8px 12px;font-size:13px;padding-top:6px}
   .prof.opts-open .prof-ctrls{display:flex}
   .prof-ctrls select{font-size:16px;padding:4px 6px}
@@ -370,7 +383,7 @@ footer a{color:inherit}
   .prof{grid-column:2;grid-row:1;height:auto;min-height:0;border-top:0;border-left:1px solid var(--line);box-shadow:-3px 0 12px rgba(0,0,0,.15)}
   .prof.min{align-self:start}
   .prof-h{padding:4px 6px}
-  .prof-wbtn button{width:32px;height:28px}
+  .prof-wbtn button{height:34px;min-width:42px}
   /* compact timeline: play + mode + speed, then the range slider and its dates */
   .prof-time{padding:3px 6px 4px;gap:2px 6px}
   .prof-time .pf-play{width:36px;height:30px}

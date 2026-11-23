@@ -137,6 +137,7 @@ panel.innerHTML = `
       <label>Color <select id="pf-color"><option value="depth">Profundidad</option><option value="tect">Ambiente (Slab2)</option><option value="year">Año</option></select></label>
       <label title="Techo y base de la placa de Nazca según Slab2"><input type="checkbox" id="pf-slab" checked> Placa (Slab2)</label>
       <label title="Mostrar en el mapa solo los sismos del perfil y del intervalo de tiempo"><input type="checkbox" id="pf-sync" checked> Sincronizar mapa</label>
+      <button id="pf-flip" title="Invertir la dirección del perfil (intercambiar A y A′)">⇄ Invertir</button>
       <button id="pf-png" title="Descargar el perfil como imagen">⤓ PNG</button>
       <button id="pf-csv" title="Descargar los sismos de la franja (CSV)">⤓ CSV</button>
     </div>
@@ -158,7 +159,7 @@ panel.innerHTML = `
       <div class="pf-dates"><span id="pf-d0"></span><span id="pf-d1"></span></div>
     </div>
   </div>`;
-document.getElementById("mapwrap").appendChild(panel);           // below the map, inside the map column
+document.querySelector("main").appendChild(panel);                 // full-width bottom row (under the left column too)
 ["click","dblclick","mousedown","wheel","touchstart"].forEach(t => panel.addEventListener(t, e => e.stopPropagation()));
 const cv = $("#pf-canvas"), tip = $("#pf-tip"), hcv = $("#pf-hist");
 
@@ -182,8 +183,8 @@ function closePanel(keepLine){
 }
 $("#pf-close").onclick = () => closePanel(false);
 $("#pf-min").onclick = () => { panel.classList.toggle("min"); $("#pf-min").textContent = panel.classList.contains("min") ? "▢" : "–"; map.invalidateSize(); setTimeout(draw, 50); };
-$("#pf-width").oninput = e => { P.width = s2w(+e.target.value); $("#pf-wval").textContent = `${nf(P.width)} km`; drawOverlay(); recompute(false); draw(); };
-$("#pf-width").onchange = () => { recompute(true); syncUrl(); };
+$("#pf-width").oninput = e => { P.width = s2w(+e.target.value); drawOverlay(); recompute(false); };
+$("#pf-width").onchange = () => { syncUrl(); };
 $("#pf-mag").onchange = e => { P.magMin = +e.target.value; recompute(false); };
 $("#pf-ve").onchange = e => { P.ve = e.target.value; draw(); };
 $("#pf-color").onchange = e => { P.color = e.target.value; draw(); scheduleMapSync(); };
@@ -193,21 +194,23 @@ $("#pf-mode").onchange = e => { P.mode = e.target.value; if (P.mode !== "acum") 
 $("#pf-speed").onchange = e => { P.speed = +e.target.value; };
 $("#pf-play").onclick = () => togglePlay(!P.playing);
 $("#pf-csv").onclick = exportCSV;
+$("#pf-flip").onclick = () => { const a = P.A; P.A = P.B; P.B = a; drawOverlay(); recompute(true); syncUrl(); };
 $("#pf-png").onclick = exportPNG;
 
 // ------------------------------------------------------------ data selection
 const catStart = () => A.ALL.length ? A.ALL[A.ALL.length - 1].t : Date.now() - 365 * A.DAY;
-function recompute(withTopo){
-  if (!P.A) return;
+// Projections depend only on the line A–A′ (and the magnitude threshold); they are cached so
+// that moving the width slider is just a filter on the cached cross-track distances.
+let geomKey = "";
+function projectAll(){
   P.L = dist(P.A, P.B); P.brg = bearing(P.A, P.B);
-  const half = P.width / 2;
-  // a quick bounding test avoids projecting every event when the swath is small
-  P.ev = [];
+  const HMAX = WIDTH_MAX / 2;
+  P.cand = [];
   A.ALL.forEach(e => {
     if (e.mag < P.magMin - 1e-9) return;
     const q = project(e);
-    if (q.at < -1e-6 || q.at > P.L + 1e-6 || Math.abs(q.xt) > half) return;
-    P.ev.push({e, at:q.at, xt:q.xt});
+    if (q.at < -1e-6 || q.at > P.L + 1e-6 || Math.abs(q.xt) > HMAX) return;
+    P.cand.push({e, at:q.at, xt:q.xt});
   });
   // faults: crossings of the section line + apparent dip
   P.faults = [];
@@ -235,17 +238,28 @@ function recompute(withTopo){
     f.app = deg(Math.atan(Math.tan(rad(f.dip)) * Math.abs(c)));
     f.side = c >= 0 ? 1 : -1;                     // +1: dips towards A′
   });
-  const half2 = Math.min(half, 60);                // surface features: within the swath (≤ 60 km)
-  P.cities = []; [A.layers.citiesMain, A.layers.citiesSec].forEach(g => g.eachLayer(m => {
+  P.citiesAll = []; [A.layers.citiesMain, A.layers.citiesSec].forEach(g => g.eachLayer(m => {
     const ll = m.getLatLng(), q = project({lat:ll.lat, lon:ll.lng});
-    if (q.at >= 0 && q.at <= P.L && Math.abs(q.xt) <= half2) P.cities.push({at:q.at, name:m.getTooltip().getContent(), main:m.options.main});
+    if (q.at >= 0 && q.at <= P.L) P.citiesAll.push({at:q.at, xt:q.xt, name:m.getTooltip().getContent(), main:m.options.main});
   }));
-  P.volcs = []; A.layers.volcanoes.eachLayer(m => {
+  P.volcsAll = []; A.layers.volcanoes.eachLayer(m => {
     const ll = m.getLatLng(), q = project({lat:ll.lat, lon:ll.lng});
-    if (q.at >= 0 && q.at <= P.L && Math.abs(q.xt) <= Math.max(half2, 30)) P.volcs.push({at:q.at, xt:q.xt, p:m.options.volc});
+    if (q.at >= 0 && q.at <= P.L) P.volcsAll.push({at:q.at, xt:q.xt, p:m.options.volc});
   });
-  $("#pf-wval").textContent = `${nf(P.width)} km`;
   sampleSlab();
+}
+function filterWidth(){
+  const half = P.width / 2, half2 = Math.min(half, 60);      // surface features: within the swath (≤ 60 km)
+  P.ev = P.cand.filter(x => Math.abs(x.xt) <= half);
+  P.cities = P.citiesAll.filter(c => Math.abs(c.xt) <= half2);
+  P.volcs = P.volcsAll.filter(v => Math.abs(v.xt) <= Math.max(half2, 30));
+  $("#pf-wval").textContent = `${nf(P.width)} km`;
+}
+function recompute(withTopo, force){
+  if (!P.A) return;
+  const key = [P.A.lat, P.A.lon, P.B.lat, P.B.lon, P.magMin, A.ALL.length].join(",");
+  if (force || key !== geomKey){ geomKey = key; projectAll(); }
+  filterWidth();
   drawHist(); updateTime(true);
   if (withTopo) loadTopo();
 }
@@ -331,22 +345,46 @@ function setSync(on){
     if (!map.hasLayer(profQuakes)){ quakesWereOn = map.hasLayer(A.layers.quakes); map.removeLayer(A.layers.quakes); profQuakes.addTo(map); }
     scheduleMapSync();
   } else if (map.hasLayer(profQuakes)){
-    profQuakes.remove(); profQuakes.clearLayers(); if (quakesWereOn) A.layers.quakes.addTo(map); A.restack();
+    profQuakes.remove(); profQuakes.clearLayers(); shownIds = new Set(); if (quakesWereOn) A.layers.quakes.addTo(map); A.restack();
   }
 }
-function scheduleMapSync(){ if (!P.open || !P.sync) return; if (syncT) return; syncT = setTimeout(() => { syncT = null; mapSync(); }, P.playing ? 160 : 40); }
-function mapSync(){
-  if (!map.hasLayer(profQuakes)) setSync(true);
-  profQuakes.clearLayers();
-  const [a, b] = curWindow();
-  visibleEvents().sort((x, y) => x.e.mag - y.e.mag).forEach(({e}) => {
-    const age = P.mode === "acum" ? 0 : (b - e.t) / (b - a);
-    const m = L.circleMarker([e.lat, e.lon], {renderer:A.renderer, radius:A.radiusOf(e.mag), color:"#2b2b2b", weight:.7, fillColor:colorOf(e), fillOpacity:.9 - .6 * age, opacity:1 - .6 * age});
-    m.bindTooltip(`M${e.mag.toFixed(1)} · ${esc(e.ref)}<br>${A.fmtLocal(e.t, false)} · ${e.prof ?? "?"} km`, {direction:"top", offset:[0, -4]});
-    m.on("click", () => L.popup({maxWidth:340}).setLatLng([e.lat, e.lon]).setContent(A.popupHtml(e)).openOn(map));
-    m.addTo(profQuakes);
-  });
+function scheduleMapSync(){
+  if (!P.open || !P.sync || syncT) return;
+  syncT = requestAnimationFrame(() => { syncT = null; mapSync(); });       // at most one map update per frame
 }
+const pool = new Map();                    // event id -> circle marker (created once, reused)
+let shownIds = new Set(), styleKey = "";
+function markerFor(e){
+  let m = pool.get(e.id);
+  if (!m){
+    m = L.circleMarker([e.lat, e.lon], {renderer:A.renderer, radius:A.radiusOf(e.mag), color:"#2b2b2b", weight:.7, fillColor:colorOf(e), fillOpacity:.9});
+    m.bindTooltip(() => `M${e.mag.toFixed(1)} · ${esc(e.ref)}<br>${A.fmtLocal(e.t, false)} · ${e.prof ?? "?"} km`, {direction:"top", offset:[0, -4]});
+    m.on("click", () => L.popup({maxWidth:340}).setLatLng([e.lat, e.lon]).setContent(A.popupHtml(e)).openOn(map));
+    pool.set(e.id, m);
+  }
+  return m;
+}
+function mapSync(){
+  if (!P.open || !P.sync) return;
+  if (!map.hasLayer(profQuakes)) setSync(true);
+  const [a, b] = curWindow(), vis = visibleEvents(), next = new Set(vis.map(x => x.e.id));
+  // remove markers that left the swath/interval, add the ones that entered (small diff while dragging)
+  shownIds.forEach(id => { if (!next.has(id)) profQuakes.removeLayer(pool.get(id)); });
+  const added = vis.filter(x => !shownIds.has(x.e.id)).sort((x, y) => x.e.mag - y.e.mag);
+  added.forEach(({e}) => profQuakes.addLayer(markerFor(e)));
+  // restyle only when colours/fading can change
+  const key = P.color + "|" + A.theme;
+  const fade = P.mode !== "acum";
+  if (fade || key !== styleKey || added.length){
+    (fade || key !== styleKey ? vis : added).forEach(({e}) => {
+      const age = fade ? (b - e.t) / Math.max(1, b - a) : 0;
+      pool.get(e.id).setStyle({fillColor:colorOf(e), fillOpacity:.9 - .6 * age, opacity:1 - .6 * age});
+    });
+    styleKey = key;
+  }
+  shownIds = next;
+}
+A._profMapSync = mapSync;
 
 // ------------------------------------------------------------ colours
 const YEAR_COLS = ["#440154","#46327e","#365c8d","#277f8e","#1fa187","#4ac16d","#a0da39","#fde725"];
@@ -372,8 +410,8 @@ const TH = () => A.theme === "dark"
 function niceStep(range, n){ const raw = range / n, m = Math.pow(10, Math.floor(Math.log10(raw))); return [1, 2, 2.5, 5, 10].map(f => f * m).find(s => s >= raw); }
 
 // ------------------------------------------------------------ main drawing
-function layout(w, h){
-  const m = {l:56, r:16, t:18, b:30}, topoH = Math.max(60, Math.min(110, h * .26)), gap = 4;
+function layout(w, h, legW){
+  const m = {l:56, r:legW ? legW + 26 : 16, t:18, b:30}, topoH = Math.max(60, Math.min(110, h * .26)), gap = 4;
   return {w, h, m, topoH, y0:m.t + topoH + gap, plotW:w - m.l - m.r, plotH:h - (m.t + topoH + gap) - m.b};
 }
 function draw(target){
@@ -383,7 +421,26 @@ function draw(target){
   const c = target || cv;
   if (!target){ c.width = W * dpr; c.height = H * dpr; c.style.width = W + "px"; c.style.height = H + "px"; }
   const g = c.getContext("2d"); g.setTransform(target ? target.__scale : dpr, 0, 0, target ? target.__scale : dpr, 0, 0);
-  const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', lay = layout(W, H), {m, topoH, y0, plotW, plotH} = lay;
+  const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  // legend contents first: its width sets the right margin of the plot
+  const leg = {items:[], sl:P.showSlab && P.slabProf, title:"", w:0};
+  if (P.color === "tect" && A.SLAB_CLASSES){ const present = new Set(visibleEvents().map(v => v.e.slab && v.e.slab.cls)); leg.title = "Ambiente (Slab2)"; leg.items = A.SLAB_ORDER.filter(k => present.has(k)).map(k => ({c:A.SLAB_CLASSES[k].color, t:A.SLAB_CLASSES[k].short})); }
+  else if (P.color === "depth"){ leg.title = "Profundidad"; leg.items = A.DEPTH_COLORS.map(c => ({c:c[1], t:c[2]})); }
+  else if (P.color === "year"){ const y0y = A.limaParts(catStart()).y, y1y = A.limaParts(Date.now()).y; leg.title = "Año"; for (let y = y0y; y <= y1y; y++) leg.items.push({c:colorOf({t:A.limaStart(y, 7, 1)}), t:String(y)}); }
+  g.font = `11px ${F}`;
+  // rows of the legend (title, colour items, slab entries, size note); 15 px each
+  leg.rows = [];
+  if (leg.title) leg.rows.push({k:"title", t:leg.title});
+  leg.items.forEach(i => leg.rows.push({k:"dot", ...i}));
+  if (leg.sl) leg.rows.push({k:"gap"}, {k:"top", t:"Techo de la placa"}, {k:"unc", t:"Incertidumbre (Slab2)"}, {k:"bot", t:"Base de la placa"});
+  leg.rows.push({k:"gap"}, {k:"note", t:"Tamaño ∝ magnitud"});
+  const colW = Math.max(...leg.rows.map(r => r.t ? g.measureText(r.t).width + (r.k === "title" || r.k === "note" ? 4 : 18) : 0));
+  let lay = layout(W, H, colW);
+  const rowH = r => r.k === "gap" ? 6 : 15, need = leg.rows.reduce((s, r) => s + rowH(r), 0) + 4;
+  leg.cols = need > lay.plotH ? 2 : 1;
+  leg.colW = colW; leg.w = colW * leg.cols + (leg.cols - 1) * 14;
+  if (leg.cols === 2) lay = layout(W, H, leg.w);
+  const {m, topoH, y0, plotW, plotH} = lay;
   g.fillStyle = T.bg; g.fillRect(0, 0, W, H);
   const X = km => m.l + km / P.L * plotW;
   // depth scale
@@ -506,22 +563,24 @@ function draw(target){
     g.strokeText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6); g.fillStyle = col; g.fillText("Placa de Nazca (Slab2)", X(p.at) + 6, Y(p.top) + 6);
     g.restore();
   }
-  // compact legend (bottom-right of the depth panel)
-  {
-    let items = [];
-    if (P.color === "tect" && A.SLAB_CLASSES){ const present = new Set(vis.map(v => v.e.slab && v.e.slab.cls)); items = A.SLAB_ORDER.filter(k => present.has(k)).map(k => ({c:A.SLAB_CLASSES[k].color, t:A.SLAB_CLASSES[k].short})); }
-    else if (P.color === "depth") items = A.DEPTH_COLORS.map(c => ({c:c[1], t:c[2]}));
-    const sl = P.showSlab && P.slabProf;
-    if (items.length || sl){
-      g.font = `11px ${F}`; const lh = 15, w = Math.max(0, ...items.map(i => g.measureText(i.t).width), sl ? g.measureText("Techo de la placa ± incert.").width : 0) + 34;
-      const h = (items.length + (sl ? 2 : 0)) * lh + 8, bx = m.l + plotW - w - 6, by = y0 + plotH - h - 6;
-      g.fillStyle = A.theme === "dark" ? "rgba(26,31,38,.9)" : "rgba(255,255,255,.9)"; g.fillRect(bx, by, w, h); g.strokeStyle = T.axis; g.lineWidth = 1; g.strokeRect(bx + .5, by + .5, w, h);
-      g.textAlign = "left"; g.textBaseline = "middle"; let yy = by + 4 + lh / 2;
-      items.forEach(i => { g.beginPath(); g.arc(bx + 12, yy, 4.5, 0, 2 * Math.PI); g.fillStyle = i.c; g.fill(); g.strokeStyle = T.stroke; g.lineWidth = .8; g.stroke(); g.fillStyle = T.ink; g.fillText(i.t, bx + 24, yy); yy += lh; });
-      if (sl){ const col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a";
-        g.strokeStyle = col; g.lineWidth = 2.2; g.beginPath(); g.moveTo(bx + 6, yy); g.lineTo(bx + 19, yy); g.stroke(); g.fillStyle = T.ink; g.fillText("Techo de la placa ± incert.", bx + 24, yy); yy += lh;
-        g.setLineDash([5, 3]); g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx + 6, yy); g.lineTo(bx + 19, yy); g.stroke(); g.setLineDash([]); g.fillText("Base de la placa", bx + 24, yy); }
-    }
+  // legend, in its own column to the right of the plot (never over the data)
+  if (leg.w){
+    const col = A.theme === "dark" ? "#c9a7ff" : "#6a3d9a", x0 = m.l + plotW + 14, yTop = y0 + 2, yMax = y0 + plotH;
+    let c = 0, yy = yTop;
+    g.textAlign = "left"; g.textBaseline = "middle";
+    leg.rows.forEach(r => {
+      const h = r.k === "gap" ? 6 : 15;
+      if (yy + h > yMax && c < leg.cols - 1 && r.k !== "gap"){ c++; yy = yTop; }
+      if (r.k === "gap"){ yy += h; return; }
+      const bx = x0 + c * (leg.colW + 14), cy = yy + h / 2;
+      g.font = r.k === "title" ? `700 11px ${F}` : `11px ${F}`; g.fillStyle = r.k === "note" ? T.muted : T.ink;
+      if (r.k === "dot"){ g.beginPath(); g.arc(bx + 6, cy, 4.5, 0, 2 * Math.PI); g.fillStyle = r.c; g.fill(); g.strokeStyle = T.stroke; g.lineWidth = .8; g.stroke(); g.fillStyle = T.ink; g.fillText(r.t, bx + 18, cy); }
+      else if (r.k === "top"){ g.strokeStyle = col; g.lineWidth = 2.2; g.beginPath(); g.moveTo(bx, cy); g.lineTo(bx + 13, cy); g.stroke(); g.fillText(r.t, bx + 18, cy); }
+      else if (r.k === "unc"){ g.fillStyle = A.theme === "dark" ? "rgba(201,167,255,.25)" : "rgba(106,61,154,.18)"; g.fillRect(bx, cy - 5, 13, 10); g.fillStyle = T.ink; g.fillText(r.t, bx + 18, cy); }
+      else if (r.k === "bot"){ g.strokeStyle = col; g.setLineDash([5, 3]); g.lineWidth = 1.4; g.beginPath(); g.moveTo(bx, cy); g.lineTo(bx + 13, cy); g.stroke(); g.setLineDash([]); g.fillText(r.t, bx + 18, cy); }
+      else g.fillText(r.t, bx, cy);
+      yy += h;
+    });
   }
   // time label while playing
   if (P.playing || P.mode !== "acum"){
@@ -619,7 +678,7 @@ A.onDataReady = A.onDataReady || [];
 A.onDataReady.push(() => {
   const s = new URLSearchParams(location.search).get("perfil");
   if (s && !P.open){ const v = s.split(",").map(Number); if (v.length >= 4 && v.every(isFinite)) openProfile({lat:v[0], lon:v[1]}, {lat:v[2], lon:v[3]}, v[4] || 100); }
-  else if (P.open) recompute(false);
+  else if (P.open){ pool.clear(); profQuakes.clearLayers(); shownIds = new Set(); recompute(false, true); }
 });
 A.redrawProfile = () => { if (P.open){ sampleSlab(); drawHist(); draw(); } };
 })();

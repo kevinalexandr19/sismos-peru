@@ -317,6 +317,7 @@ function drawDateInputs(){
   else if (m === "rango") box.innerHTML = `<label></label><input type="date" id="in-d0" value="${state.d0 || ""}" max="${today}" aria-label="Desde"><span>–</span><input type="date" id="in-d1" value="${state.d1 || ""}" max="${today}" aria-label="Hasta">`;
   else box.innerHTML = "";
 }
+APP.drawDateInputs = drawDateInputs;
 $("#dateinputs").addEventListener("change", ev => {
   const id = ev.target.id, v = ev.target.value;
   if (id === "in-dia" && v) state.dia = v;
@@ -632,6 +633,21 @@ if (mq && mq.addEventListener) mq.addEventListener("change", ev => { let s = nul
 $("#theme").onclick = () => { const t = APP.theme === "dark" ? "light" : "dark"; try { localStorage.setItem("theme", t); } catch (e) {} applyTheme(t); };
 
 // ---------------------------------------------------------------- start
+// If the browser shows a cached copy of an older version, fetch the current page once and reload.
+APP.VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "";
+async function checkVersion(){
+  try {
+    const t = await (await fetch(location.pathname + "?vcheck=" + Date.now(), {cache:"no-store"})).text();
+    const m = t.match(/name="app-version" content="([^"]+)"/);
+    if (m && APP.VERSION && m[1] !== APP.VERSION && sessionStorage.getItem("reloadedFor") !== m[1]){
+      sessionStorage.setItem("reloadedFor", m[1]);
+      await fetch(location.href, {cache:"reload"}).catch(() => {});
+      location.reload();
+    }
+  } catch (e) {}
+}
+setTimeout(checkVersion, 4000); setInterval(checkVersion, 30 * 60e3);
+
 // modules (e.g. the profile tool) register callbacks to run once layers and events are loaded
 APP.onDataReady = APP.onDataReady || [];
 const dataReady = () => APP.onDataReady.forEach(f => { try { f(); } catch (e) { console.error(e); } });

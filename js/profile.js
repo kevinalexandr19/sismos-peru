@@ -138,6 +138,8 @@ panel.innerHTML = `
       <label title="Techo y base de la placa de Nazca según Slab2"><input type="checkbox" id="pf-slab" checked> Placa (Slab2)</label>
       <label title="Mostrar en el mapa solo los sismos del perfil y del intervalo de tiempo"><input type="checkbox" id="pf-sync" checked> Sincronizar mapa</label>
       <button id="pf-flip" title="Invertir la dirección del perfil (intercambiar A y A′)">⇄ Invertir</button>
+      <button id="pf-share" title="Copiar un enlace que abre esta misma vista (perfil, filtros, capas y encuadre)">🔗 Compartir</button>
+      <button id="pf-video" title="Generar un video (MP4) de la evolución temporal del perfil">🎬 Video</button>
       <button id="pf-png" title="Descargar el perfil como imagen">⤓ PNG</button>
       <button id="pf-csv" title="Descargar los sismos de la franja (CSV)">⤓ CSV</button>
     </div>
@@ -196,6 +198,8 @@ $("#pf-play").onclick = () => togglePlay(!P.playing);
 $("#pf-csv").onclick = exportCSV;
 $("#pf-flip").onclick = () => { const a = P.A; P.A = P.B; P.B = a; drawOverlay(); recompute(true); syncUrl(); };
 $("#pf-png").onclick = exportPNG;
+$("#pf-share").onclick = () => A.openShare();
+$("#pf-video").onclick = () => A.openVideo();
 
 // ------------------------------------------------------------ data selection
 const catStart = () => A.ALL.length ? A.ALL[A.ALL.length - 1].t : Date.now() - 365 * A.DAY;
@@ -416,11 +420,12 @@ function layout(w, h, legW){
 }
 function draw(target){
   if (!P.open || !P.A || panel.classList.contains("min")) return;
-  const box = cv.parentElement.getBoundingClientRect(); if (!box.width) return;
+  const box = target && target.__w ? {width:target.__w, height:target.__h} : cv.parentElement.getBoundingClientRect(); if (!box.width) return;
   const dpr = window.devicePixelRatio || 1, W = Math.round(box.width), H = Math.round(box.height);
   const c = target || cv;
   if (!target){ c.width = W * dpr; c.height = H * dpr; c.style.width = W + "px"; c.style.height = H + "px"; }
   const g = c.getContext("2d"); g.setTransform(target ? target.__scale : dpr, 0, 0, target ? target.__scale : dpr, 0, 0);
+  if (target && target.__w) g.clearRect(0, 0, W, H);
   const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
   // legend contents first: its width sets the right margin of the plot
   const leg = {items:[], sl:P.showSlab && P.slabProf, title:"", w:0};
@@ -504,6 +509,11 @@ function draw(target){
     });
     P._slabLabelRun = runs.sort((a, b) => b.length - a.length)[0];
     g.restore();
+    const shallowest = Math.min(...sp.filter(p => !isNaN(p.top)).map(p => p.top));
+    if (shallowest > dmax){
+      g.font = `italic 11px ${F}`; g.textAlign = "center"; g.textBaseline = "bottom"; g.fillStyle = col;
+      g.fillText(`La placa de Nazca (Slab2) está a más de ${nf(dmax)} km en este corte: use la exageración vertical «Auto» o una menor para verla.`, m.l + plotW / 2, y0 + plotH - 6);
+    }
   }
   // fault crossings: surface tick + apparent dip down to 20 km (typical crustal seismogenic depth),
   // at most 60 km horizontally; short dashed tick when the dip is unknown
@@ -583,7 +593,7 @@ function draw(target){
     });
   }
   // time label while playing
-  if (P.playing || P.mode !== "acum"){
+  if ((P.playing || P.mode !== "acum") && !(target && target.__w)){        // video frames show the date in their header
     g.font = `700 13px ${F}`; g.textAlign = "right"; g.textBaseline = "top"; g.fillStyle = T.ink;
     g.fillText(P.mode === "acum" ? `hasta ${A.fmtDate(tb)}` : `${A.fmtDate(ta)} – ${A.fmtDate(tb)}`, m.l + plotW - 6, y0 + 6);
   }
@@ -667,6 +677,228 @@ async function exportPNG(){
   download(blob, "png");
 }
 
+
+// ------------------------------------------------------------ shareable link with the current settings
+const ymdL = t => { const p = A.limaParts(t); return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`; };
+function shareUrl(){
+  const u = new URL(location.origin + location.pathname), st = A.state, kv = o => Object.entries(o).filter(([, v]) => v !== "" && v != null).map(([k, v]) => `${k}:${v}`).join(";");
+  if (P.open){
+    u.searchParams.set("perfil", [P.A.lat, P.A.lon, P.B.lat, P.B.lon].map(v => v.toFixed(3)).join(",") + "," + P.width);
+    u.searchParams.set("pv", kv({m:P.magMin, ve:P.ve, c:P.color, s:P.showSlab ? 1 : 0, sy:P.sync ? 1 : 0, mo:P.mode, t0:ymdL(P.t0), t1:ymdL(P.t1)}));
+  }
+  u.searchParams.set("f", kv({m:st.mode, dia:st.mode === "dia" ? st.dia : "", mes:st.mode === "mes" ? `${st.mes.y}-${st.mes.m}` : "", anio:st.mode === "anio" ? st.anio : "",
+    d0:st.mode === "rango" ? st.d0 : "", d1:st.mode === "rango" ? st.d1 : "", mag:st.mag, dep:st.depth !== "all" ? st.depth : "", reg:st.region ? encodeURIComponent(st.region) : "",
+    loc:st.loc, tec:st.tect, col:A.colorBy, base:A.base}));
+  // while the map is synced to the profile the main earthquake layer is temporarily replaced: count it as on
+  const isOn = k => map.hasLayer(A.layers[k]) || (k === "quakes" && map.hasLayer(profQuakes) && quakesWereOn);
+  u.searchParams.set("capas", A.LAYER_DEFS.filter(([k]) => isOn(k)).map(([k]) => k).join(","));
+  const c = map.getCenter(); u.searchParams.set("mapa", `${c.lat.toFixed(3)},${c.lng.toFixed(3)},${map.getZoom()}`);
+  return u.toString();
+}
+A.shareUrl = shareUrl;
+const parseKV = s => Object.fromEntries((s || "").split(";").filter(Boolean).map(x => { const i = x.indexOf(":"); return [x.slice(0, i), x.slice(i + 1)]; }));
+const fromYmd = s => { const [y, m, d] = s.split("-").map(Number); return A.limaStart(y, m, d); };
+function applySharedMapState(q){
+  const f = parseKV(q.get("f")), st = A.state;
+  if (q.get("f")){
+    if (f.m) st.mode = f.m;
+    if (f.dia) st.dia = f.dia;
+    if (f.mes){ const [y, m] = f.mes.split("-").map(Number); st.mes = {y, m}; }
+    if (f.anio) st.anio = +f.anio;
+    if (f.d0) st.d0 = f.d0; if (f.d1) st.d1 = f.d1;
+    if (f.mag) st.mag = +f.mag;
+    st.depth = f.dep || "all"; st.region = f.reg ? decodeURIComponent(f.reg) : ""; st.loc = f.loc || ""; st.tect = f.tec || "";
+    if (f.col){ A.colorBy = f.col; document.querySelectorAll("#colorby button").forEach(b => b.classList.toggle("on", b.dataset.v === f.col)); }
+    if (f.base && A.BASES[f.base] && f.base !== A.base){ map.removeLayer(A.BASES[A.base].layer); A.base = f.base; A.BASES[f.base].layer.addTo(map); }
+  }
+  if (q.get("capas") != null){
+    const on = new Set(q.get("capas").split(","));
+    A.LAYER_DEFS.forEach(([k]) => { const l = A.layers[k]; if (on.has(k)) { if (!map.hasLayer(l)) l.addTo(map); } else if (map.hasLayer(l)) map.removeLayer(l); });
+    A.restack();
+  }
+  A.syncControls(); if (A.drawDateInputs) A.drawDateInputs(); if (A.drawLayersWin) A.drawLayersWin(); A.apply();
+}
+function applySharedProfileState(q){
+  const v = parseKV(q.get("pv"));
+  if (v.m){ P.magMin = +v.m; $("#pf-mag").value = (+v.m).toFixed(1); }
+  if (v.ve){ P.ve = v.ve; $("#pf-ve").value = v.ve; }
+  if (v.c){ P.color = v.c; $("#pf-color").value = v.c; }
+  if (v.s != null){ P.showSlab = v.s === "1"; $("#pf-slab").checked = P.showSlab; }
+  if (v.sy != null){ P.sync = v.sy === "1"; $("#pf-sync").checked = P.sync; }
+  if (v.mo){ P.mode = v.mo; if (P.mode !== "acum") P.win = +P.mode; $("#pf-mode").value = v.mo; }
+  if (v.t0) P.t0 = Math.max(catStart(), fromYmd(v.t0));
+  if (v.t1) P.t1 = Math.min(Date.now(), fromYmd(v.t1) + A.DAY - 1);
+  recompute(false, true); setSync(P.sync);
+}
+const shareDlg = document.createElement("div");
+shareDlg.className = "modal"; shareDlg.id = "share-dlg";
+shareDlg.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-labelledby="share-h">
+  <h2 id="share-h">Compartir esta vista</h2>
+  <p class="muted" style="margin:0 0 8px;font-size:13px">El enlace abre el mapa y el perfil con la misma configuración: corte, ancho, magnitud, colores, capas, filtros, intervalo de tiempo y encuadre del mapa.</p>
+  <div class="fld"><input type="text" id="share-url" readonly aria-label="Enlace para compartir"></div>
+  <div class="btns"><button id="share-close">Cerrar</button><button class="primary" id="share-copy">Copiar enlace</button></div></div>`;
+document.body.appendChild(shareDlg);
+shareDlg.addEventListener("click", e => { if (e.target === shareDlg) shareDlg.classList.remove("on"); });
+$("#share-close").onclick = () => shareDlg.classList.remove("on");
+$("#share-copy").onclick = async () => {
+  const inp = $("#share-url");
+  try { await navigator.clipboard.writeText(inp.value); A.toast("Enlace copiado"); } catch (e) { inp.select(); document.execCommand && document.execCommand("copy"); A.toast("Enlace seleccionado: cópielo con Ctrl+C"); }
+};
+function openShare(){ $("#share-url").value = shareUrl(); shareDlg.classList.add("on"); $("#share-url").select(); }
+A.openShare = openShare;
+
+// ------------------------------------------------------------ video of the timeline (MP4)
+const vidDlg = document.createElement("div");
+vidDlg.className = "modal"; vidDlg.id = "video-dlg";
+vidDlg.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-labelledby="vid-h">
+  <h2 id="vid-h">Video de la evolución temporal del perfil</h2>
+  <p class="muted" style="margin:0 0 10px;font-size:13px">Se anima el intervalo elegido en el deslizador de tiempo, con el modo actual (acumulado o ventana móvil). Cada cuadro incluye el perfil, un mapa de ubicación y la línea de tiempo.</p>
+  <div class="fld"><label for="vid-title">Título</label><input type="text" id="vid-title" value="Perfil sísmico A–A′ · Sismos del Perú"></div>
+  <div class="vid-row">
+    <label>Duración <select id="vid-dur"><option value="10">10 s</option><option value="20" selected>20 s</option><option value="30">30 s</option><option value="45">45 s</option></select></label>
+    <label>Resolución <select id="vid-res"><option value="1280">1280 × 720</option><option value="1920" selected>1920 × 1080</option></select></label>
+    <label><input type="checkbox" id="vid-inset" checked> Mapa de ubicación</label>
+  </div>
+  <div id="vid-status" class="vid-status" aria-live="polite"></div>
+  <div class="vid-bar"><div id="vid-prog"></div></div>
+  <div class="btns"><button id="vid-cancel">Cerrar</button><button class="primary" id="vid-go">Generar video</button></div></div>`;
+document.body.appendChild(vidDlg);
+let vidAbort = false, vidBusy = false;
+$("#vid-cancel").onclick = () => { if (vidBusy) vidAbort = true; else vidDlg.classList.remove("on"); };
+function openVideo(){ $("#vid-status").textContent = videoSupportText(); $("#vid-prog").style.width = "0"; $("#vid-go").disabled = false; vidDlg.classList.add("on"); }
+A.openVideo = openVideo;
+function videoSupportText(){
+  if ("VideoEncoder" in window) return "Formato: MP4 (H.264), codificado cuadro por cuadro en su navegador.";
+  if ("MediaRecorder" in window) return "Su navegador no permite codificar cuadro por cuadro: el video se grabará en tiempo real" + (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("video/mp4") ? " en MP4." : " en WebM (ábralo con VLC o conviértalo a MP4).");
+  return "Su navegador no permite generar video. Use Chrome, Edge o Safari recientes.";
+}
+function loadMuxer(){
+  if (window.Mp4Muxer) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = "js/vendor/mp4-muxer.js"; s.onload = res; s.onerror = () => rej(new Error("no se pudo cargar mp4-muxer")); document.head.appendChild(s); });
+}
+// inset location map (equirectangular around the swath)
+function drawInset(g, x, y, w, h, vis){
+  const T = TH(), sw = swathLayer.getLatLngs()[0].map(p => [p.lng, p.lat]);
+  let [x0, x1, y0, y1] = [Math.min(...sw.map(p => p[0])), Math.max(...sw.map(p => p[0])), Math.min(...sw.map(p => p[1])), Math.max(...sw.map(p => p[1]))];
+  const padX = (x1 - x0) * .35 + .5, padY = (y1 - y0) * .35 + .5; x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
+  const kx = Math.cos(rad((y0 + y1) / 2)), sx = w / ((x1 - x0) * kx), sy = h / (y1 - y0), s = Math.min(sx, sy);
+  const ox = x + (w - (x1 - x0) * kx * s) / 2, oy = y + (h - (y1 - y0) * s) / 2;
+  const PX = lon => ox + (lon - x0) * kx * s, PY = lat => oy + (y1 - lat) * s;
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.fillStyle = A.theme === "dark" ? "#18202a" : "#e9eef2"; g.fillRect(x, y, w, h);
+  // departments
+  g.lineWidth = .8; g.strokeStyle = A.theme === "dark" ? "#6b7480" : "#8b939c"; g.fillStyle = A.theme === "dark" ? "#252c35" : "#f8f6f1";
+  A.layers.deps.eachLayer(l => {
+    const gm = l.feature.geometry, polys = gm.type === "Polygon" ? [gm.coordinates] : gm.coordinates;
+    polys.forEach(poly => { g.beginPath(); poly[0].forEach(([lo, la], i) => i ? g.lineTo(PX(lo), PY(la)) : g.moveTo(PX(lo), PY(la))); g.closePath(); g.fill(); g.stroke(); });
+  });
+  // swath and line
+  g.beginPath(); sw.forEach(([lo, la], i) => i ? g.lineTo(PX(lo), PY(la)) : g.moveTo(PX(lo), PY(la))); g.closePath();
+  g.fillStyle = "rgba(184,50,31,.10)"; g.fill(); g.setLineDash([5, 4]); g.strokeStyle = "#b8321f"; g.lineWidth = 1; g.stroke(); g.setLineDash([]);
+  const ln = lineLayer.getLatLngs(); g.beginPath(); ln.forEach((p, i) => i ? g.lineTo(PX(p.lng), PY(p.lat)) : g.moveTo(PX(p.lng), PY(p.lat))); g.strokeStyle = "#b8321f"; g.lineWidth = 2.5; g.stroke();
+  // events visible in this frame
+  [...vis].sort((a, b) => a.e.mag - b.e.mag).forEach(({e}) => { g.beginPath(); g.arc(PX(e.lon), PY(e.lat), Math.max(2, A.radiusOf(e.mag) * .45), 0, 2 * Math.PI); g.fillStyle = colorOf(e); g.fill(); g.lineWidth = .6; g.strokeStyle = T.stroke; g.stroke(); });
+  // volcanoes of the swath
+  P.volcs.forEach(v => { const ll = along(P.A, P.B, v.at / P.L); const vx = PX(ll.lon), vy = PY(ll.lat); g.beginPath(); g.moveTo(vx, vy - 5); g.lineTo(vx + 4.5, vy + 3.5); g.lineTo(vx - 4.5, vy + 3.5); g.closePath(); g.fillStyle = A.VOLC_COLORS[v.p.peligrosidad]; g.fill(); g.strokeStyle = "#111"; g.lineWidth = .8; g.stroke(); });
+  // A / A′
+  [["A", P.A], ["A′", P.B]].forEach(([t, p]) => { const px = PX(p.lon), py = PY(p.lat); g.beginPath(); g.arc(px, py, 9, 0, 2 * Math.PI); g.fillStyle = "#b8321f"; g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 1.5; g.stroke(); g.fillStyle = "#fff"; g.font = "700 10px system-ui,sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(t, px, py + .5); });
+  g.restore();
+  g.strokeStyle = T.axis; g.lineWidth = 1; g.strokeRect(x + .5, y + .5, w - 1, h - 1);
+}
+function drawTimeline(g, x, y, w, h, tA, tB, tCur){
+  const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', nb = Math.max(24, Math.floor(w / 7)), bins = new Array(nb).fill(0);
+  P.ev.forEach(v => { const i = Math.floor((v.e.t - tA) / (tB - tA) * nb); if (i >= 0 && i < nb) bins[i]++; });
+  const mx = Math.max(1, ...bins), bh = h - 22;
+  bins.forEach((n, i) => { const bt = tA + (i + .5) / nb * (tB - tA), hh = n / mx * (bh - 2);
+    g.fillStyle = bt <= tCur ? (A.theme === "dark" ? "#ff6b55" : "#b8321f") : (A.theme === "dark" ? "#3a424c" : "#d5d9de"); g.fillRect(x + i / nb * w + .5, y + bh - hh, w / nb - 1, hh); });
+  const px = x + (tCur - tA) / (tB - tA) * w;
+  g.strokeStyle = T.ink; g.lineWidth = 2; g.beginPath(); g.moveTo(px, y); g.lineTo(px, y + bh); g.stroke();
+  g.font = `12px ${F}`; g.fillStyle = T.muted; g.textBaseline = "top";
+  g.textAlign = "left"; g.fillText(A.fmtDate(tA), x, y + bh + 4); g.textAlign = "right"; g.fillText(A.fmtDate(tB), x + w, y + bh + 4);
+}
+function renderVideoFrame(g, W, H, tCur, tA, tB, opt){
+  const T = TH(), F = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', f4 = (v, pos, neg) => `${Math.abs(v).toFixed(2)}°${v < 0 ? neg : pos}`;
+  g.fillStyle = T.bg; g.fillRect(0, 0, W, H);
+  const saved = [P.t1, P.playing]; P.t1 = tCur; P.playing = true;
+  const vis = visibleEvents();
+  // header
+  g.fillStyle = T.ink; g.font = `700 22px ${F}`; g.textAlign = "left"; g.textBaseline = "top"; g.fillText(opt.title, 24, 16);
+  g.font = `13px ${F}`; g.fillStyle = T.muted;
+  g.fillText(`A ${f4(P.A.lat, "N", "S")} ${f4(P.A.lon, "E", "O")} → A′ ${f4(P.B.lat, "N", "S")} ${f4(P.B.lon, "E", "O")} · ${nf(P.L)} km · franja ${nf(P.width)} km · sismos M ≥ ${P.magMin.toFixed(1)} · ${P.mode === "acum" ? "acumulado" : "ventana de " + P.win + " días"}`, 24, 46);
+  const [wa, wb] = curWindow();
+  g.font = `700 26px ${F}`; g.fillStyle = T.ink; g.textAlign = "right";
+  g.fillText(P.mode === "acum" ? A.fmtDate(tCur) : `${A.fmtDate(wa)} – ${A.fmtDate(wb)}`, W - 24, 14);
+  g.font = `13px ${F}`; g.fillStyle = T.muted; g.fillText(`${nf(vis.length)} sismos en el perfil`, W - 24, 46);
+  // body
+  const top = 72, foot = 26, tl = 70, insetW = opt.inset ? Math.round(W * .27) : 0, gap = opt.inset ? 16 : 0;
+  const bodyH = H - top - tl - foot;
+  if (opt.inset) drawInset(g, 24, top, insetW, bodyH, vis);
+  const cx = 24 + insetW + gap, cw = W - cx - 16;
+  const chart = opt.chart; chart.__w = cw; chart.__h = bodyH;
+  draw(chart);
+  g.drawImage(chart, 0, 0, cw * chart.__scale, bodyH * chart.__scale, cx, top, cw, bodyH);
+  drawTimeline(g, 24, H - tl - foot + 8, W - 48, tl - 8, tA, tB, tCur);
+  g.font = `11px ${F}`; g.fillStyle = T.muted; g.textAlign = "right"; g.textBaseline = "middle";
+  g.fillText("Sismos: IGP · Placa: Slab2 (Hayes et al., 2018) · Fallas: GEM GAF-DB · Volcanes: IGP, Smithsonian GVP · Topografía: AWS Terrain Tiles · kevinalexandr19.github.io/sismos-peru", W - 24, H - foot / 2);
+  P.t1 = saved[0]; P.playing = saved[1];
+}
+async function makeVideo(){
+  if (vidBusy) return;
+  vidBusy = true; vidAbort = false; $("#vid-go").disabled = true;
+  const status = t => { $("#vid-status").textContent = t; }, prog = f => { $("#vid-prog").style.width = (100 * f).toFixed(1) + "%"; };
+  const res = +$("#vid-res").value, Wpx = res, Hpx = Math.round(res * 9 / 16), fps = 30, dur = +$("#vid-dur").value, hold = Math.round(1.5 * fps);
+  const s = Wpx / 1280, W = 1280, H = 720;                         // draw at 1280×720 logical units, scaled to the output size
+  const out = document.createElement("canvas"); out.width = Wpx; out.height = Hpx;
+  const g = out.getContext("2d", {alpha:false});
+  const chart = document.createElement("canvas"); chart.__scale = s; chart.width = Math.ceil(W * s); chart.height = Math.ceil(H * s);
+  const opt = {title:$("#vid-title").value.trim() || "Perfil sísmico A–A′", inset:$("#vid-inset").checked, chart};
+  const tA = P.t0, tB = P.t1, N = dur * fps, frameAt = k => tA + (tB - tA) * Math.min(1, (k + 1) / N);
+  const render = k => { g.setTransform(s, 0, 0, s, 0, 0); renderVideoFrame(g, W, H, frameAt(k), tA, tB, opt); };
+  const wasPlaying = P.playing; if (wasPlaying) togglePlay(false);
+  try {
+    let blob = null, ext = "mp4";
+    let cfg = null;
+    if ("VideoEncoder" in window){
+      for (const codec of ["avc1.640028", "avc1.4d0028", "avc1.42002a", "avc1.42001f"]){
+        const c = {codec, width:Wpx, height:Hpx, bitrate:Wpx >= 1920 ? 8e6 : 5e6, framerate:fps};
+        try { if ((await VideoEncoder.isConfigSupported(c)).supported){ cfg = c; break; } } catch (e) {}
+      }
+    }
+    if (cfg){
+      status("Preparando el codificador…"); await loadMuxer();
+      const muxer = new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(), video:{codec:"avc", width:Wpx, height:Hpx, frameRate:fps}, fastStart:"in-memory"});
+      let encErr = null;
+      const enc = new VideoEncoder({output:(chunk, meta) => muxer.addVideoChunk(chunk, meta), error:e => { encErr = e; }});
+      enc.configure(cfg);
+      for (let k = 0; k < N + hold; k++){
+        if (vidAbort || encErr) break;
+        render(Math.min(k, N - 1));
+        const vf = new VideoFrame(out, {timestamp:Math.round(k * 1e6 / fps), duration:Math.round(1e6 / fps)});
+        enc.encode(vf, {keyFrame:k % (fps * 2) === 0}); vf.close();
+        if (enc.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 0));
+        if (k % 10 === 0){ prog(k / (N + hold)); status(`Generando cuadros: ${k} de ${N + hold}`); await new Promise(r => setTimeout(r, 0)); }
+      }
+      if (encErr) throw encErr;
+      if (!vidAbort){ status("Finalizando el archivo MP4…"); await enc.flush(); muxer.finalize(); blob = new Blob([muxer.target.buffer], {type:"video/mp4"}); }
+      enc.close && enc.state !== "closed" && enc.close();
+    } else if ("MediaRecorder" in window && out.captureStream){
+      const mime = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find(m => MediaRecorder.isTypeSupported(m));
+      ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+      const stream = out.captureStream(fps), rec = new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond:6e6}), parts = [];
+      rec.ondataavailable = e => e.data.size && parts.push(e.data);
+      const done = new Promise(r => rec.onstop = r);
+      rec.start(); status("Grabando en tiempo real…");
+      for (let k = 0; k < N + hold && !vidAbort; k++){ render(Math.min(k, N - 1)); prog(k / (N + hold)); await new Promise(r => setTimeout(r, 1000 / fps)); }
+      rec.stop(); await done; if (!vidAbort) blob = new Blob(parts, {type:mime});
+    } else throw new Error("este navegador no permite generar video");
+    if (vidAbort){ status("Generación cancelada."); prog(0); }
+    else { prog(1); status(`Listo: video ${ext.toUpperCase()} de ${dur + 1.5} s, ${Wpx}×${Hpx} (${(blob.size / 1048576).toFixed(1)} MB).`); A.lastVideo = {size:blob.size, type:blob.type, ext}; if (!A._noDownload) download(blob, ext); }
+  } catch (err){ console.error(err); status("No se pudo generar el video: " + (err && err.message || err)); }
+  finally { vidBusy = false; $("#vid-go").disabled = false; draw(); }
+}
+$("#vid-go").onclick = makeVideo;
+A.makeVideo = makeVideo;
+
 // ------------------------------------------------------------ URL state (?perfil=latA,lonA,latB,lonB,ancho)
 function syncUrl(remove){
   const u = new URLSearchParams(location.search);
@@ -675,10 +907,17 @@ function syncUrl(remove){
   const q = u.toString(); history.replaceState(null, "", location.pathname + (q ? "?" + q : ""));
 }
 A.onDataReady = A.onDataReady || [];
+let sharedApplied = false;
 A.onDataReady.push(() => {
-  const s = new URLSearchParams(location.search).get("perfil");
-  if (s && !P.open){ const v = s.split(",").map(Number); if (v.length >= 4 && v.every(isFinite)) openProfile({lat:v[0], lon:v[1]}, {lat:v[2], lon:v[3]}, v[4] || 100); }
+  const q = new URLSearchParams(location.search), s = q.get("perfil");
+  if (!sharedApplied && (q.get("f") || q.get("capas") != null)){ applySharedMapState(q); }
+  if (s && !P.open && !sharedApplied){
+    const v = s.split(",").map(Number);
+    if (v.length >= 4 && v.every(isFinite)){ openProfile({lat:v[0], lon:v[1]}, {lat:v[2], lon:v[3]}, v[4] || 100); if (q.get("pv")) applySharedProfileState(q); }
+  }
+  if (!sharedApplied && q.get("mapa")){ const [la, lo, z] = q.get("mapa").split(",").map(Number); if ([la, lo, z].every(isFinite)) map.setView([la, lo], z); }
+  if (!sharedApplied){ sharedApplied = true; return; }
   else if (P.open){ pool.clear(); profQuakes.clearLayers(); shownIds = new Set(); recompute(false, true); }
 });
-A.redrawProfile = () => { if (P.open){ sampleSlab(); drawHist(); draw(); } };
+A.redrawProfile = () => { if (P.open){ sampleSlab(); filterWidth(); drawHist(); draw(); } };
 })();

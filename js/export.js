@@ -97,7 +97,11 @@ async function exportPNG(o, withTiles){
     ctx.lineJoin = "round"; ctx.lineWidth = 3; ctx.strokeStyle = P.halo; ctx.fillStyle = st.color;
     const text = el.textContent, tx = x + (w - ctx.measureText(text).width) / 2;
     if (st.letterSpacing && st.letterSpacing !== "normal" && "letterSpacing" in ctx) ctx.letterSpacing = st.letterSpacing;
-    ctx.strokeText(text, tx, y + h / 2); ctx.fillText(text, tx, y + h / 2);
+    const rot = el.querySelector("[data-rot]");
+    if (rot){                                                     // rotated label (trench name): draw around its centre
+      ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(+rot.dataset.rot * Math.PI / 180); ctx.textAlign = "center";
+      ctx.strokeText(text, 0, 0); ctx.fillText(text, 0, 0); ctx.restore();
+    } else { ctx.strokeText(text, tx, y + h / 2); ctx.fillText(text, tx, y + h / 2); }
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
   });
 

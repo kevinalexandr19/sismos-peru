@@ -105,7 +105,7 @@ L_.faults = L.geoJSON(null, {renderer:R,
     const p = f.properties, name = p.nombre || null;
     l.bindTooltip(name ? `<b>${esc(name)}</b><br><span class="tip-sub">${esc(p.tipo)}</span>`
                        : `Falla sin nombre<br><span class="tip-sub">${esc(p.tipo)}</span>`, {sticky:true, className:"fault-tip"});
-    l.bindPopup(`<div class="pop"><h3>${esc(name || "Falla sin nombre")}</h3><div class="sub">Falla activa</div><table>
+    l.bindPopup(`<div class="pop"><h3>${esc(name || "Falla sin nombre")}</h3><div class="sub">${p.clase === "subduccion" ? "Límite entre las placas de Nazca y Sudamericana (zona de subducción)" : "Falla activa"}</div><table>
       <tr><td>Cinemática</td><td>${esc(p.tipo)}</td></tr>
       ${p.net_slip_rate ? `<tr><td>Tasa de desliz.</td><td>${esc(p.net_slip_rate)} mm/año</td></tr>` : ""}
       ${p.average_dip ? `<tr><td>Buzamiento</td><td>${esc(p.average_dip)}° ${esc(p.buz_dir || "")}</td></tr>` : ""}
@@ -126,7 +126,34 @@ APP.volcSize = volcSize;
 map.createPane("volcanoes").style.zIndex = 430;
 L_.volcanoes = L.layerGroup().addTo(map);
 L_.plates = L.geoJSON(null, {renderer:R, style:{color:"#e8590c", weight:2.2, opacity:.8, dashArray:"8 5"},
-  onEachFeature:(f, l) => l.bindTooltip(`Límite de placas: ${esc(plateName(f.properties.Name || ""))}${f.properties.Type === "subduction" ? "<br><span class=\"tip-sub\">zona de subducción</span>" : ""}`, {sticky:true})});
+  onEachFeature:(f, l) => l.bindTooltip(plateTip(f.properties), {sticky:true})});
+// trench names for the subduction boundaries of the Nazca plate (Bird 2002 only gives plate codes)
+const TRENCH = {"NZ\\SA":"Fosa Perú–Chile", "NZ\\AP":"Fosa Perú–Chile", "NZ\\ND":"Fosa Colombia–Ecuador"};
+function plateTip(pr){
+  const n = pr.Name || "", t = TRENCH[n], pl = esc(plateName(n));
+  if (t) return `<b>${t}</b><br><span class="tip-sub">límite de placas ${pl} · zona de subducción</span>`;
+  return `Límite de placas: ${pl}${pr.Type === "subduction" ? "<br><span class=\"tip-sub\">zona de subducción</span>" : ""}`;
+}
+// fixed labels along the trench, rotated with the line and shifted a little to the ocean side
+// (Mercator keeps angles, so the angle on screen is the same at every zoom)
+function trenchLabels(){
+  [[[-12.3337, -78.6399], [-10.1594, -80.0632], "Fosa Perú–Chile"], [[-18.4828, -72.0844], [-17.2105, -73.763], "Fosa Perú–Chile"]].forEach(([a, b, txt]) => {
+    const pa = map.project(a, 0), pb = map.project(b, 0);
+    let ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+    const r = ang * Math.PI / 180; let nx = -Math.sin(r), ny = Math.cos(r); if (nx > 0){ nx = -nx; ny = -ny; }   // normal towards the ocean (west)
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const t = L.tooltip({permanent:true, direction:"center", className:"lbl trench-label", interactive:false, offset:[nx * 12, ny * 12]})
+      .setLatLng(mid).setContent(`<span class="rot" data-rot="${ang.toFixed(1)}" style="transform:rotate(${ang.toFixed(1)}deg)">${txt}</span>`);
+    trenchLbl.addLayer(t); APP.labels.push({tip:t, pri:4e6});
+  });
+}
+// the trench name is shown whenever the trench is drawn: with the active faults or with the plate boundaries
+const trenchLbl = L.layerGroup();
+map.on("layeradd layerremove", e => {
+  if (e.layer !== L_.faults && e.layer !== L_.plates) return;
+  const on = map.hasLayer(L_.faults) || map.hasLayer(L_.plates);
+  if (on && !map.hasLayer(trenchLbl)) trenchLbl.addTo(map); else if (!on && map.hasLayer(trenchLbl)) trenchLbl.remove();
+});
 const titleCase = s => s.toLowerCase().replace(/(^|[\s(-])\S/g, c => c.toUpperCase());
 APP.titleCase = titleCase;
 // drawing order inside the shared canvas, bottom to top
@@ -153,20 +180,23 @@ function labelZoom(){
 APP.labels = [];
 function declutter(){
   const placed = [], pad = 2;
-  [...APP.labels].sort((a, b) => b.pri - a.pri).forEach(({tip}) => {
-    const el = tip.getElement && tip.getElement(); if (!el) return;
-    el.style.visibility = "";
-    if (getComputedStyle(el).display === "none") return;
-    const r = el.getBoundingClientRect(); if (!r.width) return;
+  const els = [...APP.labels].sort((a, b) => b.pri - a.pri).map(({tip}) => tip.getElement && tip.getElement()).filter(Boolean);
+  els.forEach(el => { el.style.visibility = ""; });                          // write
+  const rects = els.map(el => el.getBoundingClientRect());                   // read (a single layout)
+  const hide = rects.map(r => {
+    if (!r.width) return false;
     const hit = placed.some(q => r.left < q.right + pad && r.right > q.left - pad && r.top < q.bottom + pad && r.bottom > q.top - pad);
-    if (hit) el.style.visibility = "hidden"; else placed.push(r);
+    if (!hit) placed.push(r); return hit;
   });
+  els.forEach((el, i) => { if (hide[i]) el.style.visibility = "hidden"; });  // write
 }
+let declutterQueued = false;                     // many layers can be added in one go: declutter once per frame
+function scheduleDeclutter(){ if (declutterQueued) return; declutterQueued = true; requestAnimationFrame(() => { declutterQueued = false; declutter(); }); }
 APP.declutter = declutter;
 // floating windows are sized from the current map height (it shrinks while the cross-section is open)
 const setMapH = () => document.documentElement.style.setProperty("--maph", map.getSize().y + "px");
 map.on("resize", setMapH); setMapH();
-map.on("zoomend", labelZoom); map.on("moveend layeradd layerremove", () => requestAnimationFrame(declutter)); labelZoom();
+map.on("zoomend", labelZoom); map.on("moveend layeradd layerremove", scheduleDeclutter); labelZoom();
 
 // ---------------------------------------------------------------- floating windows
 function makeWin(id, title, position){
@@ -276,7 +306,7 @@ APP.drawLegend = drawLegend;
 map.on("overlayadd overlayremove", drawLegend);
 
 // ---------------------------------------------------------------- state & period
-const state = APP.state = {mode:"30", dia:null, mes:null, anio:null, d0:null, d1:null, mag:4.5, depth:"all", region:"", loc:"", tect:"", q:"", sort:"t"};
+const state = APP.state = {mode:"365", dia:null, mes:null, anio:null, d0:null, d1:null, mag:3, depth:"all", region:"", loc:"", tect:"", q:"", sort:"t"};
 APP.ALL = []; APP.VIEW = [];
 let markers = new Map(), selected = null, shown = 300, pulse = null;
 
@@ -374,6 +404,7 @@ async function loadLayers(){
   }
   if (fal) L_.faults.addData(fal);
   if (pla) L_.plates.addData(pla);
+  trenchLabels(); if (map.hasLayer(L_.faults) || map.hasLayer(L_.plates)) trenchLbl.addTo(map);
   if (car) L_.roads.addData(car);
   if (vol) vol.features.forEach(f => {
     const [lon, lat] = f.geometry.coordinates, p = f.properties, sz = volcSize(p.peligrosidad);
@@ -444,7 +475,7 @@ async function loadQuakes(initial){
   if (initial){
     const want = new URLSearchParams(location.search).get("evento");
     const e = want && APP.ALL.find(x => x.id === want);
-    if (e){ ensureVisible(e); select(e.id, true); }
+    if (e) showEvent(e);
   }
 }
 
@@ -452,10 +483,23 @@ function drawLatest(){
   const e = APP.ALL[0]; if (!e) return;
   $("#latest").innerHTML = `<div class="m" style="background:${depthColor(e.prof)};color:${textOn(depthColor(e.prof))}">${e.mag.toFixed(1)}</div>
     <div class="t"><b>Último sismo: ${esc(e.ref)}</b><span class="sub">${fmtLocal(e.t, false)} hora local · ${ago(e.t)} · ${e.prof ?? "?"} km</span></div>`;
-  $("#latest").onclick = () => { ensureVisible(e); select(e.id, true); };
+  $("#latest").onclick = () => showEvent(e);
   if (pulse) pulse.remove();
   pulse = L.marker([e.lat, e.lon], {icon:L.divIcon({className:"", html:'<div class="pulse"></div>', iconSize:[34,34], iconAnchor:[17,17]}), interactive:false, pane:"quakes"}).addTo(map);
 }
+// show an event (popup + fly) without touching the filters; events outside the current view get a temporary mark
+let tmpMark = null;
+function showEvent(e){
+  if (markers.has(e.id)) return select(e.id, true);
+  if (tmpMark) tmpMark.remove();
+  tmpMark = L.circleMarker([e.lat, e.lon], {renderer:R, radius:radiusOf(e.mag), color:APP.theme === "dark" ? "#fff" : "#000", weight:2, dashArray:"3 3", fillColor:colorOf(e), fillOpacity:.6, interactive:false}).addTo(map);
+  const note = `<div class="pop-note">No se incluye en los filtros actuales; se muestra sin cambiarlos.</div>`;
+  map.flyTo([e.lat, e.lon], Math.max(map.getZoom(), 7), {duration:.8});
+  map.once("moveend", () => L.popup({maxWidth:340}).setLatLng([e.lat, e.lon]).setContent(popupHtml(e) + note).openOn(map));
+  history.replaceState(null, "", `?evento=${encodeURIComponent(e.id)}`);
+}
+APP.showEvent = showEvent;
+map.on("popupclose", () => { if (tmpMark){ tmpMark.remove(); tmpMark = null; } });
 function ensureVisible(e){
   if (APP.VIEW.includes(e)) return;
   Object.assign(state, {mode:"todo", mag:3, depth:"all", region:"", loc:"", q:""});
@@ -480,13 +524,7 @@ function apply(){
   APP.period = b;
   APP.VIEW = APP.ALL.filter(e => passes(e, b));
   $("#periodlabel").textContent = b.label[0].toUpperCase() + b.label.slice(1);
-  L_.quakes.clearLayers(); markers.clear();
-  [...APP.VIEW].sort((a, c) => a.mag - c.mag).forEach(e => {
-    const m = L.circleMarker([e.lat, e.lon], {renderer:R, radius:radiusOf(e.mag), color:"#2b2b2b", weight:.7, fillColor:colorOf(e), fillOpacity:.85});
-    m.on("click", () => select(e.id, false));
-    m.bindTooltip(`M${e.mag.toFixed(1)} · ${esc(e.ref)}<br>${fmtLocal(e.t, false)} · ${e.prof ?? "?"} km`, {direction:"top", offset:[0,-4]});
-    m.addTo(L_.quakes); markers.set(e.id, {m, e});
-  });
+  syncMarkers();
   L_.heat.setLatLngs(APP.VIEW.map(e => [e.lat, e.lon, Math.min(1, (e.mag - 2) / 5)]));
   const V = APP.VIEW;
   $("#s-n").textContent = nf(V.length);
@@ -497,6 +535,32 @@ function apply(){
   if (selected && !markers.has(selected)) selected = null;
 }
 APP.apply = apply;
+// pool of map markers, one per event, created on first use and kept; a filter change only adds or removes
+// the difference and restyles the markers whose colour changed (thousands of events stay responsive)
+const pool = new Map();
+function markerOf(e){
+  let k = pool.get(e.id);
+  if (!k){
+    const m = L.circleMarker([e.lat, e.lon], {renderer:R, radius:radiusOf(e.mag), color:"#2b2b2b", weight:.7, fillColor:colorOf(e), fillOpacity:.85});
+    m.on("click", () => select(e.id, false));
+    m.bindTooltip(() => `M${e.mag.toFixed(1)} · ${esc(e.ref)}<br>${fmtLocal(e.t, false)} · ${ago(e.t)} · ${e.prof ?? "?"} km`, {direction:"top", offset:[0,-4]});
+    k = {m, e, col:m.options.fillColor}; pool.set(e.id, k);
+  }
+  return k;
+}
+function syncMarkers(){
+  const want = new Set(APP.VIEW.map(e => e.id));
+  markers.forEach((k, id) => { if (!want.has(id)){ L_.quakes.removeLayer(k.m); markers.delete(id); } });
+  let added = 0;
+  APP.VIEW.forEach(e => {
+    const k = markerOf(e);
+    if (k.e !== e){ k.e = e; }                                            // catalogue reloaded: keep the newest record
+    const c = colorOf(e); if (k.col !== c){ k.col = c; k.m.setStyle({fillColor:c}); }
+    if (!markers.has(e.id)){ markers.set(e.id, k); L_.quakes.addLayer(k.m); added++; }
+  });
+  // drawing order: small events first, big ones on top (only needed when new markers came in)
+  if (added && map.hasLayer(L_.quakes)) [...APP.VIEW].sort((a, c) => a.mag - c.mag).forEach(e => markers.get(e.id).m.bringToFront());
+}
 
 APP.filterText = function(){
   const parts = [];
@@ -576,12 +640,13 @@ map.on("popupclose", () => { if (location.search) history.replaceState(null, "",
 // ---------------------------------------------------------------- controls
 function syncControls(){
   $("#mode").value = state.mode;
-  $("#mag").value = state.mag; $("#magval").textContent = (+state.mag).toFixed(1);
+  $("#mag").value = state.mag; $("#magval").textContent = magLabel(state.mag);
   $("#depth").value = state.depth; $("#region").value = state.region; $("#loc").value = state.loc; $("#tect").value = state.tect;
   $("#q").value = state.q; $("#sort").value = state.sort;
 }
 APP.syncControls = syncControls;
-$("#mag").oninput = e => { $("#magval").textContent = (+e.target.value).toFixed(1); };
+function magLabel(v){ return +v <= 3 ? "Todas" : (+v).toFixed(1); }
+$("#mag").oninput = e => { $("#magval").textContent = magLabel(e.target.value); };
 $("#mag").onchange = e => { state.mag = +e.target.value; apply(); };
 $("#depth").onchange = e => { state.depth = e.target.value; apply(); };
 $("#loc").onchange = e => { state.loc = e.target.value; apply(); };

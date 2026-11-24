@@ -122,6 +122,9 @@ def main():
         p["tipo"], p["clase"] = tipo_es(p.get("slip_type"))
         p["fuente"] = FUENTE.get(p.get("catalog_name"), p.get("catalog_name") or "GEM GAF-DB")
         p["buz_dir"] = DIRS.get(p.get("dip_dir"), p.get("dip_dir"))
+        if p["clase"] == "subduccion" and not p["nombre"]:
+            lat_max = max(c[1] for c in f["geometry"]["coordinates"])
+            p["nombre"] = "Fosa Perú–Chile" if lat_max < -3 else "Fosa Colombia–Ecuador"
     with open(PATH, "w", encoding="utf-8") as fh:
         json.dump(gj, fh, ensure_ascii=False, separators=(",", ":"))
     names = sorted({(f["properties"].get("name"), f["properties"]["nombre"]) for f in gj["features"] if f["properties"].get("name")})

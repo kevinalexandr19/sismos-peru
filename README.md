@@ -11,7 +11,7 @@ Esta aplicación es una herramienta complementaria a los productos del IGP: reco
 ## Funciones
 
 - Catálogo de sismos reportados por el IGP desde 2019 (código, fecha y hora local/UTC, magnitud, profundidad, epicentro, referencia, intensidad y enlace al reporte acelerométrico en PDF).
-- Fechas: últimas 24 h, 7 días, 30 días o 12 meses; un día, un mes o un año concretos (con flechas para avanzar o retroceder); un rango personalizado o todo el catálogo.
+- Fechas: últimas 24 h, 7 días, 30 días o 12 meses; un día, un mes o un año concretos (con flechas para avanzar o retroceder); un rango personalizado o todo el catálogo. Al abrir la app se muestran los últimos 12 meses con todas las magnitudes. El botón «Último sismo» abre ese evento sin cambiar los filtros elegidos.
 - Filtros por magnitud mínima, profundidad (superficial ≤ 60 km, intermedia 61–300 km, profunda > 300 km), región del epicentro, epicentro en tierra o en el mar, y texto libre.
 - Pestaña **Estadísticas e insights**: indicadores, textos automáticos (mayor sismo, mayor intensidad, región más activa, día más activo, comparación con el periodo anterior con prueba binomial, valor b) y gráficos (sismos por hora/día/semana/mes, magnitud en el tiempo, Gutenberg–Richter, sección de profundidad, distribución de profundidades, sismos por región).
 - Modo claro (por defecto) y modo oscuro, con el botón ☾/☀; la elección se recuerda.

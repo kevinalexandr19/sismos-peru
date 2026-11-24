@@ -44,7 +44,8 @@ jobs:
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
             git commit -m "Actualizar catálogo sísmico IGP [skip ci]"
-            git push
+            # another push may have landed meanwhile: replay this commit on top and retry
+            for i in 1 2 3; do git pull --rebase origin main && git push && break; sleep 5; done
           fi
 
       # Publish only when data changed or the run was not a scheduled one
